@@ -1,0 +1,6 @@
+options:
+  OPENBW_ENABLE_UI: 1
+  BWAPI_CONFIG_AI__AI: BWEnv/build/BWEnv.so
+  BWAPI_CONFIG_AUTO_MENU__AUTO_MENU: SINGLE_PLAYER
+  BWAPI_CONFIG_AUTO_MENU__MAP: maps/micro/m5v5_c_far.scm 
+ 
