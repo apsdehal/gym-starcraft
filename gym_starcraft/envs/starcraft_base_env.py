@@ -1,7 +1,6 @@
 import gym
 
 import torchcraft.Constants as tcc
-import torchcraft as tc
 import random
 import yaml
 import subprocess
@@ -16,7 +15,7 @@ import atexit
 class StarCraftBaseEnv(gym.Env):
     def __init__(self, torchcraft_dir='~/TorchCraft',
                  bwapi_launcher_path='../bwapi/bin/BWAPILauncher',
-                 config_path='./gym-starcraft/gym_starcraft/envs/config.yml',
+                 config_path='./gym-cooperative/gym_cooperative/envs/starcraft/config.yml',
                  server_ip='127.0.0.1',
                  server_port=11111,
                  speed=0, frame_skip=10000, set_gui=0, self_play=0,
@@ -28,9 +27,20 @@ class StarCraftBaseEnv(gym.Env):
         if not final_init:
             return
 
-        server_port = self._find_available_port(server_ip, server_port)
+        self.config_path = config_path
+        self.torchcraft_dir = torchcraft_dir
+        self.bwapi_launcher_path = bwapi_launcher_path
+        self.server_ip = server_ip
+        self.self_play = self_play
+        self.frame_skip = frame_skip
+        self.speed = speed
+        self.max_episode_steps = max_episode_steps
+        self.set_gui = set_gui
+
+        self.server_port = self._find_available_port(server_ip, server_port)
+
         config = None
-        with open(config_path, 'r') as f:
+        with open(self.config_path, 'r') as f:
             try:
                 config = yaml.load(f)
             except yaml.YAMLError as err:
@@ -44,38 +54,23 @@ class StarCraftBaseEnv(gym.Env):
             options[key] = str(val)
 
         options['BWAPI_CONFIG_AUTO_MENU__GAME_TYPE'] = "USE MAP SETTINGS"
-        options['BWAPI_CONFIG_AUTO_MENU__AUTO_RESTART'] = "ON"
-        options['TORCHCRAFT_PORT'] = str(server_port)
+        options['BWAPI_CONFIG_AUTO_MENU__AUTO_RESTART'] = "OFF"
+        options['TORCHCRAFT_PORT'] = str(self.server_port)
 
-        cmds.append(bwapi_launcher_path)
+        cmds.append(self.bwapi_launcher_path)
 
-        proc = subprocess.Popen(cmds, cwd=os.path.expanduser(torchcraft_dir),
+        proc = subprocess.Popen(cmds, cwd=os.path.expanduser(self.torchcraft_dir),
                                 env=options)
         self._register_kill_at_exit(proc)
 
         time.sleep(5)
-        self.client = tc.Client()
-        self.client.connect(server_ip, server_port)
-        self.state = self.client.init(micro_battles=True)
 
-        self.speed = speed
-        self.frame_skip = frame_skip
-        self.self_play = self_play
-        self.max_episode_steps = max_episode_steps
-
-        setup = [[tcc.set_combine_frames, 1],
-                 [tcc.set_speed, self.speed],
-                 [tcc.set_gui, set_gui],
-                 [tcc.set_frameskip, self.frame_skip],
-                 [tcc.set_cmd_optim, 1]]
-
-        self.client.send(setup)
-        self.state = self.client.recv()
 
         self.episodes = 0
         self.episode_wins = 0
         self.episode_steps = 0
         self.map = 'maps/micro/micro-empty2.scm'
+        self.first_reset = True
 
 
         # NOTE: These should be overrided in derived class
@@ -83,8 +78,26 @@ class StarCraftBaseEnv(gym.Env):
         self.my_unit_pairs = []
         self.enemy_unit_pairs = []
 
+        self.state = None
         self.obs = None
         self.obs_pre = None
+
+    def init_conn(self):
+
+        import torchcraft as tc
+        self.client = tc.Client()
+        self.client.connect(self.server_ip, self.server_port)
+        self.state = self.client.init(micro_battles=True)
+
+
+        setup = [[tcc.set_combine_frames, 1],
+                 [tcc.set_speed, self.speed],
+                 [tcc.set_gui, self.set_gui],
+                 [tcc.set_frameskip, self.frame_skip],
+                 [tcc.set_cmd_optim, 1]]
+
+        self.client.send(setup)
+        self.state = self.client.recv()
 
     def __del__(self):
         if hasattr(self, 'client') and self.client:
@@ -112,7 +125,6 @@ class StarCraftBaseEnv(gym.Env):
         atexit.register(proc.kill)
 
     def _kill_child(self, child_pid):
-        print(child_pid)
         if child_pid is None:
             pass
         else:
@@ -169,6 +181,10 @@ class StarCraftBaseEnv(gym.Env):
         self.episode_steps = 0
 
         command = []
+
+        if self.first_reset:
+            self.init_conn()
+            self.first_reset = False
 
         for unit_pair in self.my_unit_pairs:
             command += self.create_units(0, unit_pair[1], x=unit_pair[2],
