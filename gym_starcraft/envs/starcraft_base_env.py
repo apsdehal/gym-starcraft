@@ -15,7 +15,7 @@ import atexit
 class StarCraftBaseEnv(gym.Env):
     def __init__(self, torchcraft_dir='~/TorchCraft',
                  bwapi_launcher_path='../bwapi/bin/BWAPILauncher',
-                 config_path='./gym-cooperative/gym_cooperative/envs/starcraft/config.yml',
+                 config_path='~/gym-starcraft/gym_starcraft/envs/config.yml',
                  server_ip='127.0.0.1',
                  server_port=11111,
                  speed=0, frame_skip=10000, set_gui=0, self_play=0,
