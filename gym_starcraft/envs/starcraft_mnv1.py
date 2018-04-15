@@ -138,6 +138,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 reward[idx] += +100
                 self.episode_wins += 1
 
+            if self.episode_steps == self.max_episode_steps:
+                reward[idx] += -100
+
         return reward
 
     def step(self, action):

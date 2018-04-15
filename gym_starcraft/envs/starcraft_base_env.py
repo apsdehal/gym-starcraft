@@ -274,7 +274,7 @@ class StarCraftBaseEnv(gym.Env):
 
     def _check_done(self):
         """Returns true if the episode was ended"""
-        return bool(self.state.game_ended) or self.state.battle_just_ended
+        return (bool(self.state.game_ended) or self.state.battle_just_ended) and (len(self.state.units[0]) == 0 or len(self.state.units[1]) == 0)
 
     def _get_info(self):
         """Returns a dictionary contains debug info"""
