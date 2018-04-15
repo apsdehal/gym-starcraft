@@ -19,7 +19,7 @@ class StarCraftBaseEnv(gym.Env):
                  server_ip='127.0.0.1',
                  server_port=11111,
                  speed=0, frame_skip=1, set_gui=0, self_play=0,
-                 max_episode_steps=1000, final_init=True):
+                 max_episode_steps=200, final_init=True):
 
         self.action_space = self._action_space()
         self.observation_space = self._observation_space()

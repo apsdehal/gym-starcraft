@@ -112,6 +112,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 myself = self.state.units[0][idx]
 
             curr_obs = np.zeros(self.observation_space.shape)
+
             if myself is not None and enemy is not None:
                 curr_obs[0] = (myself.x - enemy.x) / (self.state.map_size[0])
                 curr_obs[1] = (myself.y - enemy.y) / (self.state.map_size[0])
@@ -127,21 +128,16 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
 
         for idx in range(len(self.obs)):
-            if self.obs[idx][2] > self.obs[idx][3]:
-                reward[idx] += 1
-
-            if self.obs[idx][2] <= self.obs[idx][3]:
-                reward[idx] -= 1
+            reward[idx] += self.obs[idx][3] - self.obs[idx][2]
+            reward[idx] += -0.1
 
             if self._check_done() and not bool(self.state.battle_won):
-                reward[idx] += -500
+                reward[idx] += -100
 
             if self._check_done() and bool(self.state.battle_won):
-                reward[idx] += 1000
+                reward[idx] += +100
                 self.episode_wins += 1
 
-            if self.episode_steps == self.max_episode_steps:
-                reward[idx] += -500
         return reward
 
     def step(self, action):
