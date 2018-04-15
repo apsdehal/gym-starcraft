@@ -11,14 +11,14 @@ import os
 import signal
 import atexit
 
-
+DISTANCE_FACTOR = 8
 class StarCraftBaseEnv(gym.Env):
     def __init__(self, torchcraft_dir='~/TorchCraft',
                  bwapi_launcher_path='../bwapi/bin/BWAPILauncher',
                  config_path='~/gym-starcraft/gym_starcraft/envs/config.yml',
                  server_ip='127.0.0.1',
                  server_port=11111,
-                 speed=0, frame_skip=10000, set_gui=0, self_play=0,
+                 speed=0, frame_skip=1, set_gui=0, self_play=0,
                  max_episode_steps=1000, final_init=True):
 
         self.action_space = self._action_space()
@@ -153,7 +153,7 @@ class StarCraftBaseEnv(gym.Env):
             return
 
 
-        while len(self.state.units[0]) + len(self.state.units[1]) != 0:
+        while len(self.state.aliveUnits.values()) != 0:
             command = []
             my_units = self.state.units[0]
             enemy_units = self.state.units[1]
@@ -172,7 +172,6 @@ class StarCraftBaseEnv(gym.Env):
         wins = self.episode_wins
         episodes = self.episodes
 
-        self.try_killing()
 
         # print("Episodes: %4d | Wins: %4d | WinRate: %1.3f" % (
         #         episodes, wins, wins / (episodes + 1E-6)))
@@ -185,6 +184,8 @@ class StarCraftBaseEnv(gym.Env):
         if self.first_reset:
             self.init_conn()
             self.first_reset = False
+        
+        self.try_killing()
 
         for unit_pair in self.my_unit_pairs:
             command += self.create_units(0, unit_pair[1], x=unit_pair[2],
@@ -209,6 +210,11 @@ class StarCraftBaseEnv(gym.Env):
 
 
     def create_units(self, player_id, quantity, x=100, y=100, unit_type=0):
+        if x < 0:
+            x = random.randint(0, self.state.map_size[0]) * DISTANCE_FACTOR
+        
+        if y < 0:
+            y = random.randint(0, self.state.map_size[1]) * DISTANCE_FACTOR
         commands = []
 
         for _ in range(quantity):
