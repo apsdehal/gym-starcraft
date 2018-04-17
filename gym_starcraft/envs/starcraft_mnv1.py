@@ -110,6 +110,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         for idx in range(self.nagents):
             if len(self.state.units[0]) > idx:
                 myself = self.state.units[0][idx]
+            else:
+                myself = None
 
             curr_obs = np.zeros(self.observation_space.shape)
 
