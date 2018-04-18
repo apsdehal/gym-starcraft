@@ -12,7 +12,7 @@ DISTANCE_FACTOR = 8
 
 # N vs 1 marines, starcraft environment
 class StarCraftMNv1(sc.StarCraftBaseEnv):
-    TIMESTEP_PENALTY = -0.05
+    TIMESTEP_PENALTY = -0.01
 
     def __init__(self, args, final_init):
         super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
@@ -112,7 +112,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         enemy = None
 
         for enemy_id in self.enemy_ids:
-            if enemy in self.enemy_current_units:
+            if enemy_id in self.enemy_current_units:
                 enemy = self.enemy_current_units[enemy_id]
 
         full_obs = []
@@ -154,15 +154,14 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             if self.episode_steps == self.max_episode_steps:
                 reward[idx] += 0 - self.obs_pre[idx][3]
             else:
-                reward[idx] += self.obs_pre[idx][3] - self.obs[idx][3]
-                reward[idx] += self.obs[idx][4] - self.obs_pre[idx][4]
+                reward[idx] += self.obs[idx][3] - self.obs_pre[idx][3]
+                reward[idx] += self.obs_pre[idx][4] - self.obs[idx][4]
 
-            if self._check_done() and len(self.state1.units[1]) == 0:
+            if self._check_done() and self._has_won() == 1:
                 reward[idx] += +10
 
-        if self._check_done() and len(self.state1.units[1]) == 0:
+        if self._check_done() and self._has_won() == 1:
             self.episode_wins += 1
-
         return reward
 
     def _get_info(self):
