@@ -1,6 +1,7 @@
 import argparse
 
 from gym_starcraft.envs.starcraft_mnv1 import StarCraftMNv1
+import os
 
 
 class RandomAgent(object):
@@ -18,7 +19,7 @@ def get_args():
     parser.add_argument('--torchcraft_dir', type=str, default='~/TorchCraft',
                         help='TorchCraft directory')
     parser.add_argument('--bwapi_launcher_path', type=str,
-                        default='../bwapi/bin/BWAPILauncher',
+                        default=os.path.join(os.environ["BWAPI_INSTALL_PREFIX"], 'bin/BWAPILauncher'),
                         help='Path to BWAPILauncher')
     parser.add_argument('--config_path', type=str,
                         default='../gym-starcraft/gym_starcraft/envs/config.yml',

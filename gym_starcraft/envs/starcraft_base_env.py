@@ -14,7 +14,7 @@ import atexit
 DISTANCE_FACTOR = 8
 class StarCraftBaseEnv(gym.Env):
     def __init__(self, torchcraft_dir='~/TorchCraft',
-                 bwapi_launcher_path='../bwapi/bin/BWAPILauncher',
+                 bwapi_launcher_path=os.path.join(os.environ["BWAPI_INSTALL_PREFIX"], 'bin/BWAPILauncher'),
                  config_path='~/gym-starcraft/gym_starcraft/envs/config.yml',
                  server_ip='127.0.0.1',
                  server_port=11111,
