@@ -145,6 +145,16 @@ class StarCraftBaseEnv(gym.Env):
     def _step(self, action):
         self.episode_steps += 1
 
+        # Stop stepping if map config has come into play
+        if len(self.state.aliveUnits.values()) > len(self.my_unit_pairs) + len(self.enemy_unit_pairs):
+            reward = self._compute_reward()
+            self.my_current_units = {}
+            self.obs = self._make_observation()
+            done = True
+            info = {}
+            return self.obs, reward, done, info
+
+
         self.client.send(self._make_commands(action))
         self.state = self.client.recv()
 
@@ -153,6 +163,9 @@ class StarCraftBaseEnv(gym.Env):
         while not self._has_step_completed():
             self.client.send([])
             self.state = self.client.recv()
+
+        self.my_current_units = self._parse_units_to_unit_dict(self.state.units[0])
+        self.enemy_current_units = self._parse_units_to_unit_dict(self.state.units[1])
 
         self.obs = self._make_observation()
         reward = self._compute_reward()
@@ -314,11 +327,9 @@ class StarCraftBaseEnv(gym.Env):
 
     def _check_done(self):
         """Returns true if the episode was ended"""
-        return (bool(self.state.game_ended) or \
-                self.state.battle_just_ended) or \
-                len(self.state.units[0]) == 0 or \
+        return (len(self.state.units[0]) == 0 or \
                 len(self.state.units[1]) == 0 or \
-                self.episode_steps == self.max_episode_steps
+                self.episode_steps == self.max_episode_steps)
 
     def _get_info(self):
         """Returns a dictionary contains debug info"""

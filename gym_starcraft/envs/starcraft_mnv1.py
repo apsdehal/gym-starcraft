@@ -26,7 +26,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
         self.enemy_unit_pairs = [(0, 1, -1, -1, 100, 150)]
 
-        self.vision = 5
+        self.vision = 7
         self.move_steps = ((0, 1), (0, -1), (-1, 0), (1, 0), (0, 0))
 
         self.prev_actions = np.zeros(self.nagents)
@@ -112,7 +112,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         enemy = None
 
         for enemy_id in self.enemy_ids:
-            enemy = self.enemy_current_units[enemy_id]
+            if enemy in self.enemy_current_units:
+                enemy = self.enemy_current_units[enemy_id]
 
         full_obs = []
 
@@ -156,9 +157,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 reward[idx] += self.obs_pre[idx][3] - self.obs[idx][3]
                 reward[idx] += self.obs[idx][4] - self.obs_pre[idx][4]
 
-            if self._check_done() and bool(self.state.battle_won):
+            if self._check_done() and len(self.state.units[1]) == 0:
                 reward[idx] += +10
-                self.episode_wins += 1
+
+        if self._check_done() and len(self.state.units[1]) == 0:
+            self.episode_wins += 1
 
         return reward
 
