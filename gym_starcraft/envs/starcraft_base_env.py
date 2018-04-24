@@ -115,6 +115,7 @@ class StarCraftBaseEnv(gym.Env):
         self.state1 = None
         self.obs = None
         self.obs_pre = None
+        self.stat = {}
 
     def init_conn(self):
 
@@ -154,6 +155,16 @@ class StarCraftBaseEnv(gym.Env):
             os.kill(child_pid, signal.SIGTERM)
 
     def _step(self, action):
+
+        # Stop stepping if map config has come into play
+        if len(self.state.aliveUnits.values()) > len(self.my_unit_pairs) + len(self.enemy_unit_pairs):
+            reward = self._compute_reward()
+            self.my_current_units = {}
+            self.obs = self._make_observation()
+            done = True
+            info = {}
+            return self.obs, reward, done, info
+
         self.episode_steps += 1
 
         self.client1.send(self._make_commands(action))
@@ -170,6 +181,8 @@ class StarCraftBaseEnv(gym.Env):
         reward = self._compute_reward()
         done = self._check_done()
         info = self._get_info()
+
+        self._update_stat()
         self.obs_pre = self.obs
         return self.obs, reward, done, info
 
@@ -246,6 +259,7 @@ class StarCraftBaseEnv(gym.Env):
         # This adds my and enemy's units' ids as incrementing list
         self.agent_ids = list(self.my_current_units)
         self.enemy_ids = list(self.enemy_current_units)
+        self.stat = {}
 
         self.obs = self._make_observation()
         self.obs_pre = self.obs
@@ -347,6 +361,17 @@ class StarCraftBaseEnv(gym.Env):
     def _get_info(self):
         """Returns a dictionary contains debug info"""
         return {}
+
+    def _update_stat(self):
+        if self._check_done():
+            if self._has_won():
+                self.stat['success'] = 1
+            else:
+                self.stat['success'] = 0
+
+            self.stat['steps_taken'] = self.episode_steps
+
+        return self.stat
 
     def render(self, mode='human', close=False):
         pass
