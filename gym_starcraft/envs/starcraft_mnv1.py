@@ -128,6 +128,12 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             curr_obs = np.zeros(self.observation_space.shape)
 
             if myself is not None and enemy is not None:
+                if myself.attacking:
+                    self.has_attacked[idx] = 0
+
+                if enemy.under_attack:
+                    self.was_attacked[0] = idx
+
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
                 if distance < self.vision:
@@ -150,15 +156,18 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
     def _compute_reward(self):
         reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
 
-        for idx in range(len(self.obs)):
+        for idx in range(self.nagents):
             if self.episode_steps == self.max_episode_steps:
                 reward[idx] += 0 - self.obs_pre[idx][3]
             else:
                 reward[idx] += self.obs[idx][3] - self.obs_pre[idx][3]
-                reward[idx] += self.obs_pre[idx][4] - self.obs[idx][4]
+
+                if self.has_attacked[idx] == 0 and self.was_attacked[0] == idx:
+                    reward[idx] += self.obs_pre[idx][4] - self.obs[idx][4]
 
             if self._check_done() and self._has_won() == 1:
-                reward[idx] += +10
+                if self.has_attacked[idx] != -1:
+                    reward[idx] += +10
 
         if self._check_done() and self._has_won() == 1:
             self.episode_wins += 1
@@ -179,4 +188,6 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return self._step(action)
 
     def reset(self):
+        self.has_attacked = np.zeros(self.nagents) * -1
+        self.was_attacked = np.zeros(len(self.enemy_unit_pairs)) * -1
         return self._reset()
