@@ -15,16 +15,33 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
     TIMESTEP_PENALTY = -0.01
 
     def __init__(self, args, final_init):
+        self.nagents = args.nagents
+        self.nenemies = args.nenemies
         super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
                                               args.config_path, args.server_ip,
                                               args.server_port, args.speed,
                                               args.frame_skip, args.set_gui, args.self_play,
                                               args.max_steps, final_init)
-
+        # TODO: We had to do this twice so that action_space is well defined.
+        # Fix this later
         self.nagents = args.nagents
-        self.my_unit_pairs = [(0, 1, -1, -1, 100, 150) for _ in range(args.nagents)]
+        self.nenemies = args.nenemies
 
-        self.enemy_unit_pairs = [(0, 1, -1, -1, 100, 150)]
+        initialize_together = args.initialize_together
+        init_range_start = args.init_range_start
+        init_range_end = args.init_range_end
+
+        if initialize_together:
+            self.my_unit_pairs = [(0, self.nagents, -1, -1, init_range_start, init_range_end)]
+            self.enemy_unit_pairs = [(0, self.nenemies, -1, -1, init_range_start, init_range_end)]
+        else:
+            # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
+            # initialize x and y coordinates within 100 and 150
+            self.my_unit_pairs = [(0, 1, -1, -1, init_range_start, init_range_end)
+                                    for _ in range(self.nagents)]
+
+            self.enemy_unit_pairs = [(0, 1, -1, -1, init_range_start, init_range_end)
+                                        for _ in range(self.nenemies)]
 
         self.vision = 7
         self.move_steps = ((0, 1), (0, -1), (-1, 0), (1, 0), (0, 0))
@@ -33,7 +50,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
     def _action_space(self):
         # Move up, down, left, right, stay, attack agents i to n
-        self.nactions = 5 + 1
+        self.nactions = 5 + self.nenemies
 
         # return spaces.Box(np.array(action_low), np.array(action_high))
         return spaces.MultiDiscrete([self.nactions])
@@ -78,8 +95,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             else:
                 enemy_id = action - len(self.move_steps)
 
-                if len(self.enemy_ids) > enemy_id:
-                    enemy_id = self.enemy_ids[enemy_id]
+                enemy_id = self.enemy_ids[enemy_id]
+
+                if enemy_id in self.enemy_current_units:
                     enemy_unit = self.enemy_current_units[enemy_id]
                 else:
                     enemy_unit = None
@@ -111,11 +129,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         myself = None
         enemy = None
 
-        for enemy_id in self.enemy_ids:
-            if enemy_id in self.enemy_current_units:
-                enemy = self.enemy_current_units[enemy_id]
 
-        full_obs = []
+        full_obs = np.zeros((self.nagents, self.nenemies) + self.observation_space.shape)
 
         for idx in range(self.nagents):
             agent_id = self.agent_ids[idx]
@@ -125,18 +140,30 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             else:
                 myself = None
 
-            curr_obs = np.zeros(self.observation_space.shape)
+            if myself is None:
+                continue
 
-            if myself is not None and enemy is not None:
+            for enemy_idx in range(self.nenemies):
+                enemy_id = self.enemy_ids[enemy_idx]
+                if enemy_id in self.enemy_current_units:
+                    enemy = self.enemy_current_units[enemy_id]
+                else:
+                    enemy = None
+
+                if enemy is None:
+                    continue
+
                 if myself.attacking:
-                    self.has_attacked[idx] = 0
+                    self.has_attacked[idx] = enemy_idx
 
                 if enemy.under_attack:
-                    self.was_attacked[0] = idx
+                    self.was_attacked[enemy_idx] = idx
+
+                curr_obs = full_obs[idx][enemy_idx]
 
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
-                if distance < self.vision:
+                if distance <= self.vision:
                     curr_obs[0] = (myself.x - enemy.x) / (self.vision)
                     curr_obs[1] = (myself.y - enemy.y) / (self.vision)
                     curr_obs[2] = 0
@@ -149,21 +176,20 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 curr_obs[4] = enemy.health / enemy.max_health
                 curr_obs[5] = myself.groundCD / myself.maxCD
                 curr_obs[6] = enemy.groundCD / enemy.maxCD
-            full_obs.append(curr_obs)
-
-        return np.stack(full_obs)
+        return full_obs
 
     def _compute_reward(self):
         reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
 
         for idx in range(self.nagents):
             if self.episode_steps == self.max_episode_steps:
-                reward[idx] += 0 - self.obs_pre[idx][3]
+                reward[idx] += 0 - self.obs_pre[idx][0][3]
             else:
-                reward[idx] += self.obs[idx][3] - self.obs_pre[idx][3]
+                reward[idx] += self.obs[idx][0][3] - self.obs_pre[idx][0][3]
 
-                if self.has_attacked[idx] == 0 and self.was_attacked[0] == idx:
-                    reward[idx] += self.obs_pre[idx][4] - self.obs[idx][4]
+                for enemy_idx in range(self.nenemies):
+                    if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
+                        reward[idx] += self.obs_pre[idx][enemy_idx][4] - self.obs[idx][enemy_idx][4]
 
             if self._check_done() and self._has_won() == 1:
                 if self.has_attacked[idx] != -1:
@@ -189,5 +215,5 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
     def reset(self):
         self.has_attacked = np.zeros(self.nagents) * -1
-        self.was_attacked = np.zeros(len(self.enemy_unit_pairs)) * -1
+        self.was_attacked = np.zeros(self.nenemies) * -1
         return self._reset()

@@ -105,6 +105,8 @@ class StarCraftBaseEnv(gym.Env):
         # So (1, 0, -1, -1, 100, 150) will instantiate 0 type unit
         # at a random place between x = (100, 150) and y = (100, 150)
         # Leave empty if you want to instantiate anywhere in whole map
+        self.nagents = 1
+        self.nenemies = 1
         self.my_unit_pairs = []
         self.enemy_unit_pairs = []
 
@@ -157,7 +159,7 @@ class StarCraftBaseEnv(gym.Env):
     def _step(self, action):
 
         # Stop stepping if map config has come into play
-        if len(self.state.aliveUnits.values()) > len(self.my_unit_pairs) + len(self.enemy_unit_pairs):
+        if len(self.state.aliveUnits.values()) > self.nagents + self.nenemies:
             reward = self._compute_reward()
             self.my_current_units = {}
             self.obs = self._make_observation()
