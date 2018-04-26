@@ -56,9 +56,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return spaces.MultiDiscrete([self.nactions])
 
     def _observation_space(self):
-        # relative_x, relative_y, in_vision, my_hp, enemy_hp, my_cooldown, enemy_cooldown
-        obs_low = [-1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        obs_high = [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0]
+        # absolute_x, absolute_y, relative_x, relative_y, in_vision, my_hp, enemy_hp, my_cooldown, enemy_cooldown
+        obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0]
 
         return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
 
@@ -163,19 +163,22 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
-                if distance <= self.vision:
-                    curr_obs[0] = (myself.x - enemy.x) / (self.vision)
-                    curr_obs[1] = (myself.y - enemy.y) / (self.vision)
-                    curr_obs[2] = 0
-                else:
-                    curr_obs[0] = 0
-                    curr_obs[1] = 0
-                    curr_obs[2] = 1
+                curr_obs[0] = myself.x / self.state.map_size[0]
+                curr_obs[1] = myself.y / self.state.map_size[1]
 
-                curr_obs[3] = myself.health / myself.max_health
-                curr_obs[4] = enemy.health / enemy.max_health
-                curr_obs[5] = myself.groundCD / myself.maxCD
-                curr_obs[6] = enemy.groundCD / enemy.maxCD
+                if distance <= self.vision:
+                    curr_obs[2] = (myself.x - enemy.x) / (self.vision)
+                    curr_obs[3] = (myself.y - enemy.y) / (self.vision)
+                    curr_obs[4] = 0
+                else:
+                    curr_obs[2] = 0
+                    curr_obs[3] = 0
+                    curr_obs[4] = 1
+
+                curr_obs[5] = myself.health / myself.max_health
+                curr_obs[6] = enemy.health / enemy.max_health
+                curr_obs[7] = myself.groundCD / myself.maxCD
+                curr_obs[8] = enemy.groundCD / enemy.maxCD
         return full_obs
 
     def _compute_reward(self):
@@ -183,13 +186,13 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
         for idx in range(self.nagents):
             if self.episode_steps == self.max_episode_steps:
-                reward[idx] += 0 - self.obs_pre[idx][0][3]
+                reward[idx] += 0 - self.obs_pre[idx][0][5]
             else:
-                reward[idx] += self.obs[idx][0][3] - self.obs_pre[idx][0][3]
+                reward[idx] += self.obs[idx][0][5] - self.obs_pre[idx][0][5]
 
                 for enemy_idx in range(self.nenemies):
                     if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
-                        reward[idx] += self.obs_pre[idx][enemy_idx][4] - self.obs[idx][enemy_idx][4]
+                        reward[idx] += self.obs_pre[idx][enemy_idx][6] - self.obs[idx][enemy_idx][6]
 
             if self._check_done() and self._has_won() == 1:
                 if self.has_attacked[idx] != -1:
