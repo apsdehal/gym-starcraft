@@ -57,8 +57,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
     def _observation_space(self):
         # absolute_x, absolute_y, relative_x, relative_y, in_vision, my_hp, enemy_hp, my_cooldown, enemy_cooldown
-        obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0]
+        obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
         return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
 
@@ -179,6 +179,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 curr_obs[6] = enemy.health / enemy.max_health
                 curr_obs[7] = myself.groundCD / myself.maxCD
                 curr_obs[8] = enemy.groundCD / enemy.maxCD
+                curr_obs[9] = self.prev_actions[idx] / self.nactions
+
         return full_obs
 
     def _compute_reward(self):
