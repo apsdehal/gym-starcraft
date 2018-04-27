@@ -187,18 +187,27 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
 
         for idx in range(self.nagents):
-            if self.episode_steps == self.max_episode_steps:
-                reward[idx] += 0 - self.obs_pre[idx][0][5]
-            else:
-                reward[idx] += self.obs[idx][0][5] - self.obs_pre[idx][0][5]
+            reward[idx] += self.obs[idx][0][5] - self.obs_pre[idx][0][5]
 
-                for enemy_idx in range(self.nenemies):
-                    if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
-                        reward[idx] += self.obs_pre[idx][enemy_idx][6] - self.obs[idx][enemy_idx][6]
+            for enemy_idx in range(self.nenemies):
+                if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
+                    reward[idx] += self.obs_pre[idx][enemy_idx][6] - self.obs[idx][enemy_idx][6]
+
+        return reward
+
+    def reward_terminal(self):
+        reward = np.zeros(self.nagents)
+
+        for idx in range(self.nagents):
+            for enemy_idx in range(self.nenemies):
+                reward[idx] += 0 - self.obs_pre[idx][enemy_idx][6]
 
             if self._check_done() and self._has_won() == 1:
                 if self.has_attacked[idx] != -1:
                     reward[idx] += +10
+            else:
+                reward[idx] += 0 - self.obs_pre[idx][0][5]
+
 
         if self._check_done() and self._has_won() == 1:
             self.episode_wins += 1
