@@ -57,8 +57,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
     def _observation_space(self):
         # absolute_x, absolute_y, relative_x, relative_y, in_vision, my_hp, enemy_hp, my_cooldown, enemy_cooldown
-        obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        # absolute x, absolute y, my_hp, my_cooldown, prev_action, (relative_x, relative_y, in_vision, enemy_hp, enemy_cooldown) * nenemy
+        obs_low = [0.0, 0.0, 0.0, 0.0, 0.0] + [-1.0, -1.0, 0.0, 0.0, 0.0] * self.nenemies
+        obs_high = [1.0, 1.0, 1.0, 1.0, 1.0] + [1.0, 1.0, 1.0, 1.0, 1.0] * self.nenemies
+        # obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        # obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
         return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
 
@@ -130,7 +133,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         enemy = None
 
 
-        full_obs = np.zeros((self.nagents, self.nenemies) + self.observation_space.shape)
+        full_obs = np.zeros((self.nagents,) + self.observation_space.shape)
 
         for idx in range(self.nagents):
             agent_id = self.agent_ids[idx]
@@ -143,6 +146,13 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             if myself is None:
                 continue
 
+            curr_obs = full_obs[idx]
+            curr_obs[0] = myself.x / self.state.map_size[0]
+            curr_obs[1] = myself.y / self.state.map_size[1]
+            curr_obs[2] = myself.health / myself.max_health
+            curr_obs[3] = myself.groundCD / myself.maxCD
+            curr_obs[4] = self.prev_actions[idx] / self.nactions
+
             for enemy_idx in range(self.nenemies):
                 enemy_id = self.enemy_ids[enemy_idx]
                 if enemy_id in self.enemy_current_units:
@@ -153,33 +163,26 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 if enemy is None:
                     continue
 
-                if myself.attacking:
+                if myself.attacking or myself.starting_attack:
                     self.has_attacked[idx] = enemy_idx
 
                 if enemy.under_attack:
                     self.was_attacked[enemy_idx] = idx
 
-                curr_obs = full_obs[idx][enemy_idx]
-
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
-                curr_obs[0] = myself.x / self.state.map_size[0]
-                curr_obs[1] = myself.y / self.state.map_size[1]
-
+                obs_idx = 5 + enemy_idx * 5
                 if distance <= self.vision:
-                    curr_obs[2] = (myself.x - enemy.x) / (self.vision)
-                    curr_obs[3] = (myself.y - enemy.y) / (self.vision)
-                    curr_obs[4] = 0
+                    curr_obs[obs_idx] = (myself.x - enemy.x) / (self.vision)
+                    curr_obs[obs_idx + 1] = (myself.y - enemy.y) / (self.vision)
+                    curr_obs[obs_idx + 2] = 0
                 else:
-                    curr_obs[2] = 0
-                    curr_obs[3] = 0
-                    curr_obs[4] = 1
+                    curr_obs[obs_idx] = 0
+                    curr_obs[obs_idx + 1] = 0
+                    curr_obs[obs_idx + 2] = 1
 
-                curr_obs[5] = myself.health / myself.max_health
-                curr_obs[6] = enemy.health / enemy.max_health
-                curr_obs[7] = myself.groundCD / myself.maxCD
-                curr_obs[8] = enemy.groundCD / enemy.maxCD
-                curr_obs[9] = self.prev_actions[idx] / self.nactions
+                curr_obs[obs_idx + 3] = enemy.health / enemy.max_health
+                curr_obs[obs_idx + 4] = enemy.groundCD / enemy.maxCD
 
         return full_obs
 
@@ -187,11 +190,14 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
 
         for idx in range(self.nagents):
-            reward[idx] += self.obs[idx][0][5] - self.obs_pre[idx][0][5]
+            # Give own health difference as negative reward
+            reward[idx] += self.obs[idx][2] - self.obs_pre[idx][2]
 
             for enemy_idx in range(self.nenemies):
+                obs_idx = 5 + enemy_idx * 5
+                # If the agent has attacked this enemy, then give diff in enemy's health as +ve reward
                 if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
-                    reward[idx] += self.obs_pre[idx][enemy_idx][6] - self.obs[idx][enemy_idx][6]
+                    reward[idx] += self.obs_pre[idx][obs_idx + 3] - self.obs[idx][obs_idx + 3]
 
         return reward
 
@@ -199,18 +205,26 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         reward = np.zeros(self.nagents)
 
         for idx in range(self.nagents):
+            # Give terminal negative reward of each enemies' health
             for enemy_idx in range(self.nenemies):
-                reward[idx] += 0 - self.obs_pre[idx][enemy_idx][6]
+                obs_idx = 5 + enemy_idx * 5
+                reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3]
 
-            if self._check_done() and self._has_won() == 1:
-                if self.has_attacked[idx] != -1:
-                    reward[idx] += +10
+            # If the agent has attacked and we have won, give positive reward
+            if self._check_done():
+                if self._has_won() == 1:
+                    if self.has_attacked[idx] != -1:
+                        reward[idx] += +10
+                elif len(self.my_current_units) > len(self.enemy_current_units):
+                    reward[idx] += 2
             else:
-                reward[idx] += 0 - self.obs_pre[idx][0][5]
+                # If it has finished, give whole agent's health as negative reward
+                reward[idx] += 0 - self.obs_pre[idx][2]
 
 
-        if self._check_done() and self._has_won() == 1:
-            self.episode_wins += 1
+        if self._check_done():
+            if self._has_won() == 1:
+                self.episode_wins += 1
         return reward
 
     def _get_info(self):
