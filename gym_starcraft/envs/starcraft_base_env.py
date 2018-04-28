@@ -106,6 +106,7 @@ class StarCraftBaseEnv(gym.Env):
         # at a random place between x = (100, 150) and y = (100, 150)
         # Leave empty if you want to instantiate anywhere in whole map
         self.nagents = 1
+        self.vision = 3
         self.nenemies = 1
         self.my_unit_pairs = []
         self.enemy_unit_pairs = []
@@ -276,11 +277,17 @@ class StarCraftBaseEnv(gym.Env):
                                  end=end)
 
     def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=256):
+        if player_id == 0:
+            max_coord = (end - start) // 2 - self.vision // 2
+            min_coord = 0
+        else:
+            max_coord = (end - start)
+            min_coord = (end - start) // 2 + self.vision // 2
         if x < 0:
-            x = (random.randint(0, end - start) + start) * DISTANCE_FACTOR
+            x = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
 
         if y < 0:
-            y = (random.randint(0, end - start) + start) * DISTANCE_FACTOR
+            y = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
         commands = []
 
         for _ in range(quantity):
