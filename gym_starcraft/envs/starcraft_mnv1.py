@@ -32,15 +32,16 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         init_range_end = args.init_range_end
 
         if initialize_together:
-            self.my_unit_pairs = [(0, self.nagents, -1, -1, init_range_start, init_range_end)]
-            self.enemy_unit_pairs = [(0, self.nenemies, -1, -1, init_range_start, init_range_end)]
+            # 0 for marine, 37 for zergling
+            self.my_unit_pairs = [(args.our_unit_type, self.nagents, -1, -1, init_range_start, init_range_end)]
+            self.enemy_unit_pairs = [(args.enemy_unit_type, self.nenemies, -1, -1, init_range_start, init_range_end)]
         else:
             # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
             # initialize x and y coordinates within 100 and 150
-            self.my_unit_pairs = [(0, 1, -1, -1, init_range_start, init_range_end)
+            self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1, init_range_start, init_range_end)
                                     for _ in range(self.nagents)]
 
-            self.enemy_unit_pairs = [(0, 1, -1, -1, init_range_start, init_range_end)
+            self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1, init_range_start, init_range_end)
                                         for _ in range(self.nenemies)]
 
         self.vision = 7
@@ -163,11 +164,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 if enemy is None:
                     continue
 
-                if myself.attacking or myself.starting_attack:
-                    self.has_attacked[idx] = enemy_idx
-
-                if enemy.under_attack:
-                    self.was_attacked[enemy_idx] = idx
+                if (myself.attacking or myself.starting_attack) and \
+                    self.prev_actions[idx] == enemy_idx + len(self.move_steps):
+                    self.attack_map[idx][enemy_idx] = 1
 
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
@@ -196,7 +195,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             for enemy_idx in range(self.nenemies):
                 obs_idx = 5 + enemy_idx * 5
                 # If the agent has attacked this enemy, then give diff in enemy's health as +ve reward
-                if self.has_attacked[idx] == enemy_idx and self.was_attacked[enemy_idx] == idx:
+                if self.attack_map[idx][enemy_idx] == 1:
                     reward[idx] += self.obs_pre[idx][obs_idx + 3] - self.obs[idx][obs_idx + 3]
 
         return reward
@@ -211,20 +210,16 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3]
 
             # If the agent has attacked and we have won, give positive reward
-            if self._check_done():
-                if self._has_won() == 1:
-                    if self.has_attacked[idx] != -1:
-                        reward[idx] += +10
-                elif len(self.my_current_units) > len(self.enemy_current_units):
-                    reward[idx] += 2
+            if self._has_won() == 1 and self.attack_map[idx].any():
+                reward[idx] += +10
+            elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
+                reward[idx] += 2
             else:
                 # If it has finished, give whole agent's health as negative reward
                 reward[idx] += 0 - self.obs_pre[idx][2]
 
-
-        if self._check_done():
-            if self._has_won() == 1:
-                self.episode_wins += 1
+        if self._has_won() == 1:
+            self.episode_wins += 1
         return reward
 
     def _get_info(self):
@@ -242,6 +237,5 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return self._step(action)
 
     def reset(self):
-        self.has_attacked = np.zeros(self.nagents) * -1
-        self.was_attacked = np.zeros(self.nenemies) * -1
+        self.attack_map = np.zeros((self.nagents, self.nenemies))
         return self._reset()
