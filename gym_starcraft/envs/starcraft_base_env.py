@@ -189,19 +189,19 @@ class StarCraftBaseEnv(gym.Env):
         if not self.state1:
             return
 
-        while len(self.state1.aliveUnits.values()) != 0:
+        while len(self.state1.units[self.state1.player_id]) != 0 \
+              or len(self.state2.units[self.state2.player_id]) != 0:
             c1units = self.state1.units[self.state1.player_id]
             c2units = self.state2.units[self.state2.player_id]
 
-            self.client1.send(self.kill_units(c1units + c2units))
+            self.client1.send(self.kill_units(c1units))
             self.state1 = self.client1.recv()
 
-            self.client2.send(self.kill_units(c2units + c1units))
+            self.client2.send(self.kill_units(c2units))
             self.state2 = self.client2.recv()
 
             for i in range(10):
                 self._empty_step()
-            import pdb; pdb.set_trace()
 
 
     def _reset(self):
@@ -215,33 +215,33 @@ class StarCraftBaseEnv(gym.Env):
         self.episodes += 1
         self.episode_steps = 0
 
-        command = []
-
         if self.first_reset:
             self.init_conn()
             self.first_reset = False
 
         self.try_killing()
 
+        c1 = []
+        c2 = []
+
         for unit_pair in self.my_unit_pairs:
-            command += self._get_create_units_command(0, unit_pair)
+            c1 += self._get_create_units_command(self.state1.player_id, unit_pair)
 
         for unit_pair in self.enemy_unit_pairs:
-            command += self._get_create_units_command(1, unit_pair)
+            c2 += self._get_create_units_command(self.state2.player_id, unit_pair)
 
-        if len(command):
-            self.client1.send(command)
-            self.state1 = self.client1.recv()
-            self.client2.send([])
-            self.state2 = self.client2.recv()
+        self.client1.send(c1)
+        self.state1 = self.client1.recv()
+        self.client2.send(c2)
+        self.state2 = self.client2.recv()
 
-        while len(self.state1.units.get(0, [])) == 0 \
-              and len(self.state1.units.get(1, [])) == 0:
+        while len(self.state1.units.get(self.state1.player_id, [])) == 0 \
+              and len(self.state2.units.get(self.state2.player_id, [])) == 0:
             self._empty_step()
 
         # This adds my_units and enemy_units to object.
-        self.my_current_units = self._parse_units_to_unit_dict(self.state1.units[0])
-        self.enemy_current_units = self._parse_units_to_unit_dict(self.state2.units[0])
+        self.my_current_units = self._parse_units_to_unit_dict(self.state1.units[self.state1.player_id])
+        self.enemy_current_units = self._parse_units_to_unit_dict(self.state2.units[self.state2.player_id])
 
         # This adds my and enemy's units' ids as incrementing list
         self.agent_ids = list(self.my_current_units)
