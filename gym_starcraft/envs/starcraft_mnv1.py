@@ -44,7 +44,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1, init_range_start, init_range_end)
                                         for _ in range(self.nenemies)]
 
-        self.vision = 7
+        self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
+
         self.move_steps = ((0, 1), (0, -1), (-1, 0), (1, 0), (0, 0))
 
         self.prev_actions = np.zeros(self.nagents)
@@ -186,9 +187,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return full_obs
 
     def _compute_reward(self):
-        reward = np.full(self.nagents, self.TIMESTEP_PENALTY)
+        reward = np.zeros(self.nagents)
 
         for idx in range(self.nagents):
+            if self.agent_ids[idx] in self.my_current_units:
+                reward[idx] += self.TIMESTEP_PENALTY
             # Give own health difference as negative reward
             reward[idx] += self.obs[idx][2] - self.obs_pre[idx][2]
 
@@ -211,7 +214,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
             # If the agent has attacked and we have won, give positive reward
             if self._has_won() == 1 and self.attack_map[idx].any():
-                reward[idx] += +15
+                reward[idx] += +15 + 6 * self.nenemies
             elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
                 reward[idx] += 2
             else:
