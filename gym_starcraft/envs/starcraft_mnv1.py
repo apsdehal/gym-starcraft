@@ -207,16 +207,16 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             # Give terminal negative reward of each enemies' health
             for enemy_idx in range(self.nenemies):
                 obs_idx = 5 + enemy_idx * 5
-                reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3]
+                reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3] * 3
 
             # If the agent has attacked and we have won, give positive reward
             if self._has_won() == 1 and self.attack_map[idx].any():
-                reward[idx] += +10
+                reward[idx] += +15
             elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
                 reward[idx] += 2
             else:
                 # If it has finished, give whole agent's health as negative reward
-                reward[idx] += 0 - self.obs_pre[idx][2]
+                reward[idx] += 0 - self.obs_pre[idx][2] * 3
 
         if self._has_won() == 1:
             self.episode_wins += 1
