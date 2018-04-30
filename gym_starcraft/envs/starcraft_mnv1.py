@@ -47,11 +47,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
     def _make_commands(self, actions):
         cmds = []
-        if self.state is None or actions is None:
+        if self.state1 is None or actions is None:
             return cmds
 
         # Hack for case when map is not purely cleaned for frame
-        if len(self.state.units[0]) > self.nagents:
+        if len(self.state1.units[0]) > self.nagents:
             return cmds
 
         enemy_unit = None
@@ -157,10 +157,10 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 reward[idx] += self.obs_pre[idx][3] - self.obs[idx][3]
                 reward[idx] += self.obs[idx][4] - self.obs_pre[idx][4]
 
-            if self._check_done() and len(self.state.units[1]) == 0:
+            if self._check_done() and len(self.state1.units[1]) == 0:
                 reward[idx] += +10
 
-        if self._check_done() and len(self.state.units[1]) == 0:
+        if self._check_done() and len(self.state1.units[1]) == 0:
             self.episode_wins += 1
 
         return reward

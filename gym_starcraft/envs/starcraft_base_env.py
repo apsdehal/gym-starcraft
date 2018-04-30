@@ -10,6 +10,7 @@ import socket, errno
 import os
 import signal
 import atexit
+import uuid
 
 DISTANCE_FACTOR = 8
 class StarCraftBaseEnv(gym.Env):
@@ -39,8 +40,6 @@ class StarCraftBaseEnv(gym.Env):
         self.frame_count = 0
 
 
-        self.server_port = self._find_available_port(server_ip, server_port)
-
         config = None
         with open(self.config_path, 'r') as f:
             try:
@@ -51,21 +50,47 @@ class StarCraftBaseEnv(gym.Env):
 
         cmds = []
 
+        tmpfile = "/tmp/" + str(uuid.uuid4())
         options = dict(os.environ)
         for key, val in config['options'].items():
             options[key] = str(val)
 
         options['BWAPI_CONFIG_AUTO_MENU__GAME_TYPE'] = "USE MAP SETTINGS"
         options['BWAPI_CONFIG_AUTO_MENU__AUTO_RESTART'] = "ON"
-        options['TORCHCRAFT_PORT'] = str(self.server_port)
+        options['BWAPI_CONFIG_AUTO_MENU__AUTO_MENU'] = "LAN"
+        options['OPENBW_LAN_MODE'] = "LOCAL"
+        options['OPENBW_LOCAL_PATH'] = tmpfile
 
         cmds.append(self.bwapi_launcher_path)
+        print(options)
 
-        proc = subprocess.Popen(cmds, cwd=os.path.expanduser(self.torchcraft_dir),
-                                env=options)
-        self._register_kill_at_exit(proc)
+        proc1 = subprocess.Popen(cmds,
+                                cwd=os.path.expanduser(self.torchcraft_dir),
+                                env=options,
+                                stdout=subprocess.PIPE
+                                )
+        self._register_kill_at_exit(proc1)
 
-        time.sleep(5)
+        proc2 = subprocess.Popen(cmds,
+                                cwd=os.path.expanduser(self.torchcraft_dir),
+                                env=options,
+                                stdout=subprocess.PIPE
+                                )
+        self._register_kill_at_exit(proc2)
+
+        matchstr = b"TorchCraft server listening on port "
+        for line in iter(proc1.stdout.readline, ''):
+            if len(line) != 0:
+                print(line.rstrip())
+            if line[:len(matchstr)] == matchstr:
+                self.server_port1 = int(line[len(matchstr):].strip())
+                break
+        for line in iter(proc2.stdout.readline, ''):
+            if len(line) != 0:
+                print(line.rstrip())
+            if line[:len(matchstr)] == matchstr:
+                self.server_port2 = int(line[len(matchstr):].strip())
+                break
 
         self.episodes = 0
         self.episode_wins = 0
@@ -87,17 +112,20 @@ class StarCraftBaseEnv(gym.Env):
         self.enemy_current_units = {}
         self.agent_ids = []
         self.enemy_ids = []
-        self.state = None
+        self.state1 = None
         self.obs = None
         self.obs_pre = None
 
     def init_conn(self):
 
         import torchcraft as tc
-        self.client = tc.Client()
-        self.client.connect(self.server_ip, self.server_port)
-        self.state = self.client.init(micro_battles=True)
+        self.client1 = tc.Client()
+        self.client1.connect(self.server_ip, self.server_port1)
+        self.state1 = self.client1.init()
 
+        self.client2 = tc.Client()
+        self.client2.connect(self.server_ip, self.server_port2)
+        self.state2 = self.client2.init()
 
         setup = [[tcc.set_combine_frames, 1],
                  [tcc.set_speed, self.speed],
@@ -107,30 +135,14 @@ class StarCraftBaseEnv(gym.Env):
                  [tcc.set_frameskip, 1],
                  [tcc.set_cmd_optim, 1]]
 
-        self.client.send(setup)
-        self.state = self.client.recv()
+        self.client1.send(setup)
+        self.state1 = self.client1.recv()
+        self.client2.send(setup)
+        self.state2 = self.client2.recv()
 
     def __del__(self):
-        if hasattr(self, 'client') and self.client:
-            self.client.close()
-
-    def _find_available_port(self, server_ip, server_port):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        while True:
-            try:
-                s.bind((server_ip, server_port))
-            except socket.error as e:
-                if e.errno == errno.EADDRINUSE:
-                    server_port += 1
-                    continue
-                else:
-                    # something else raised the socket.error exception
-                    print(e)
-            break
-
-        s.close()
-        return server_port
+        if hasattr(self, 'client') and self.client1:
+            self.client1.close()
 
     def _register_kill_at_exit(self, proc):
         atexit.register(proc.kill)
@@ -141,31 +153,18 @@ class StarCraftBaseEnv(gym.Env):
         else:
             os.kill(child_pid, signal.SIGTERM)
 
-
     def _step(self, action):
         self.episode_steps += 1
 
-        # Stop stepping if map config has come into play
-        if len(self.state.aliveUnits.values()) > len(self.my_unit_pairs) + len(self.enemy_unit_pairs):
-            reward = self._compute_reward()
-            self.my_current_units = {}
-            self.obs = self._make_observation()
-            done = True
-            info = {}
-            return self.obs, reward, done, info
-
-
-        self.client.send(self._make_commands(action))
-        self.state = self.client.recv()
+        self.client1.send(self._make_commands(action))
+        self.state1 = self.client1.recv()
+        self.client2.send([])
+        self.state2 = self.client2.recv()
 
         self._skip_frames()
 
         while not self._has_step_completed():
-            self.client.send([])
-            self.state = self.client.recv()
-
-        self.my_current_units = self._parse_units_to_unit_dict(self.state.units[0])
-        self.enemy_current_units = self._parse_units_to_unit_dict(self.state.units[1])
+            self._empty_step()
 
         self.obs = self._make_observation()
         reward = self._compute_reward()
@@ -174,30 +173,35 @@ class StarCraftBaseEnv(gym.Env):
         self.obs_pre = self.obs
         return self.obs, reward, done, info
 
+    def _empty_step(self):
+        self.client1.send([])
+        self.state1 = self.client1.recv()
+        self.client2.send([])
+        self.state2 = self.client2.recv()
+
     def _skip_frames(self):
         count = 0
         while count < self.frame_skip:
-            self.client.send([])
-            self.state = self.client.recv()
+            self._empty_step()
             count += 1
 
     def try_killing(self):
-        if not self.state:
+        if not self.state1:
             return
 
-        while len(self.state.aliveUnits.values()) != 0:
-            command = []
-            my_units = self.state.units[0]
-            enemy_units = self.state.units[1]
-            if len(my_units):
-                command += self.kill_units(my_units, len(my_units))
+        while len(self.state1.aliveUnits.values()) != 0:
+            c1units = self.state1.units[self.state1.player_id]
+            c2units = self.state2.units[self.state2.player_id]
 
-            if len(enemy_units):
-                command += self.kill_units(enemy_units, len(enemy_units))
+            self.client1.send(self.kill_units(c1units + c2units))
+            self.state1 = self.client1.recv()
 
-            if len(command):
-                self.client.send(command)
-                self.state = self.client.recv()
+            self.client2.send(self.kill_units(c2units + c1units))
+            self.state2 = self.client2.recv()
+
+            for i in range(10):
+                self._empty_step()
+            import pdb; pdb.set_trace()
 
 
     def _reset(self):
@@ -226,16 +230,18 @@ class StarCraftBaseEnv(gym.Env):
             command += self._get_create_units_command(1, unit_pair)
 
         if len(command):
-            self.client.send(command)
-            self.state = self.client.recv()
+            self.client1.send(command)
+            self.state1 = self.client1.recv()
+            self.client2.send([])
+            self.state2 = self.client2.recv()
 
-        while bool(self.state.waiting_for_restart):
-            self.client.send([])
-            self.state = self.client.recv()
+        while len(self.state1.units.get(0, [])) == 0 \
+              and len(self.state1.units.get(1, [])) == 0:
+            self._empty_step()
 
         # This adds my_units and enemy_units to object.
-        self.my_current_units = self._parse_units_to_unit_dict(self.state.units[0])
-        self.enemy_current_units = self._parse_units_to_unit_dict(self.state.units[1])
+        self.my_current_units = self._parse_units_to_unit_dict(self.state1.units[0])
+        self.enemy_current_units = self._parse_units_to_unit_dict(self.state2.units[0])
 
         # This adds my and enemy's units' ids as incrementing list
         self.agent_ids = list(self.my_current_units)
@@ -246,7 +252,7 @@ class StarCraftBaseEnv(gym.Env):
         return self.obs
 
     def _get_create_units_command(self, player_id, unit_pair):
-        defaults = [1, 100, 100, 0, self.state.map_size[0] - 10][len(unit_pair) - 1:]
+        defaults = [1, 100, 100, 0, self.state1.map_size[0] - 10][len(unit_pair) - 1:]
         unit_type, quantity, x, y, start, end = (list(unit_pair) + defaults)[:6]
 
         return self.create_units(player_id, quantity, x=x, y=y,
@@ -277,12 +283,10 @@ class StarCraftBaseEnv(gym.Env):
     def is_empty(self, data):
         return data is not None and len(data) == 0
 
-    def kill_units(self, units, quantity):
+    def kill_units(self, units):
         commands = []
-        random.shuffle(units)
 
-        for i in range(quantity):
-            u = units[i]
+        for u in units:
             command = [
                 tcc.command_openbw,
                 tcc.openbwcommandtypes.KillUnit,
@@ -327,8 +331,9 @@ class StarCraftBaseEnv(gym.Env):
 
     def _check_done(self):
         """Returns true if the episode was ended"""
-        return (len(self.state.units[0]) == 0 or \
-                len(self.state.units[1]) == 0 or \
+        return (bool(self.state1.game_ended) or \
+                len(self.state1.units[0]) == 0 or \
+                len(self.state1.units[1]) == 0 or \
                 self.episode_steps == self.max_episode_steps)
 
     def _get_info(self):
