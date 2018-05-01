@@ -11,6 +11,9 @@ import os
 import signal
 import atexit
 import uuid
+import gym_starcraft.utils as utils
+import tempfile
+
 
 DISTANCE_FACTOR = 8
 class StarCraftBaseEnv(gym.Env):
@@ -19,6 +22,7 @@ class StarCraftBaseEnv(gym.Env):
                  config_path='~/gym-starcraft/gym_starcraft/envs/config.yml',
                  server_ip='127.0.0.1',
                  server_port=11111,
+                 ai_type='builtin',
                  speed=0, frame_skip=1, set_gui=0, self_play=0,
                  max_episode_steps=200, final_init=True):
 
@@ -38,6 +42,7 @@ class StarCraftBaseEnv(gym.Env):
         self.max_episode_steps = max_episode_steps
         self.set_gui = set_gui
         self.frame_count = 0
+        self.ai_type = ai_type
 
 
         config = None
@@ -50,10 +55,11 @@ class StarCraftBaseEnv(gym.Env):
 
         cmds = []
 
-        tmpfile = "/tmp/" + str(uuid.uuid4())
+        tmpfile = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
         options = dict(os.environ)
         for key, val in config['options'].items():
             options[key] = str(val)
+
 
         options['BWAPI_CONFIG_AUTO_MENU__GAME_TYPE'] = "USE MAP SETTINGS"
         options['BWAPI_CONFIG_AUTO_MENU__AUTO_RESTART'] = "ON"
@@ -172,7 +178,7 @@ class StarCraftBaseEnv(gym.Env):
 
         self.client1.send(self._make_commands(action))
         self.state1 = self.client1.recv()
-        self.client2.send([])
+        self.client2.send(self._get_enemy_commands())
         self.state2 = self.client2.recv()
 
         self._skip_frames()
@@ -200,6 +206,26 @@ class StarCraftBaseEnv(gym.Env):
         while count < self.frame_skip:
             self._empty_step()
             count += 1
+
+    def _get_enemy_commands(self):
+        cmds = []
+        func = lambda *args: None
+
+        if self.ai_type == 'attack_closest':
+            func = utils.get_closest
+        elif self.ai_type == 'attack_weakest':
+            func = utils.get_weakest
+
+        for unit in self.state2.units[self.state2.player_id]:
+            opp_unit = func(unit, self.state2, self.state1.player_id)
+
+            if opp_unit is not None:
+                cmds.append([
+                    tcc.command_unit_protected, unit.id,
+                    tcc.unitcommandtypes.Attack_Unit, opp_unit.id
+                ])
+
+        return cmds
 
     def try_killing(self):
         if not self.state1:
