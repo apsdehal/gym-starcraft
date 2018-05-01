@@ -73,7 +73,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             return cmds
 
         # Hack for case when map is not purely cleaned for frame
-        if len(self.state1.units[0]) > self.nagents:
+        if len(self.state1.units[self.state1.player_id]) > self.nagents:
             return cmds
 
         enemy_unit = None
@@ -149,8 +149,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 continue
 
             curr_obs = full_obs[idx]
-            curr_obs[0] = myself.x / self.state.map_size[0]
-            curr_obs[1] = myself.y / self.state.map_size[1]
+            curr_obs[0] = myself.x / self.state1.map_size[0]
+            curr_obs[1] = myself.y / self.state1.map_size[1]
             curr_obs[2] = myself.health / myself.max_health
             curr_obs[3] = myself.groundCD / myself.maxCD
             curr_obs[4] = self.prev_actions[idx] / self.nactions

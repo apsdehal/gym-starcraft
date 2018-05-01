@@ -81,13 +81,13 @@ class StarCraftBaseEnv(gym.Env):
         matchstr = b"TorchCraft server listening on port "
         for line in iter(proc1.stdout.readline, ''):
             if len(line) != 0:
-                print(line.rstrip())
+                print(line.rstrip().decode('utf-8'))
             if line[:len(matchstr)] == matchstr:
                 self.server_port1 = int(line[len(matchstr):].strip())
                 break
         for line in iter(proc2.stdout.readline, ''):
             if len(line) != 0:
-                print(line.rstrip())
+                print(line.rstrip().decode('utf-8'))
             if line[:len(matchstr)] == matchstr:
                 self.server_port2 = int(line[len(matchstr):].strip())
                 break
@@ -160,7 +160,7 @@ class StarCraftBaseEnv(gym.Env):
     def _step(self, action):
 
         # Stop stepping if map config has come into play
-        if len(self.state.aliveUnits.values()) > self.nagents + self.nenemies:
+        if len(self.state1.aliveUnits.values()) > self.nagents + self.nenemies:
             reward = self._compute_reward()
             self.my_current_units = {}
             self.obs = self._make_observation()
@@ -277,12 +277,13 @@ class StarCraftBaseEnv(gym.Env):
                                  end=end)
 
     def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=256):
-        if player_id == 0:
+        if player_id == self.state1.player_id:
             max_coord = (end - start) // 2 - self.vision // 2
             min_coord = 0
         else:
             max_coord = (end - start)
             min_coord = (end - start) // 2 + self.vision // 2
+
         if x < 0:
             x = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
 
@@ -355,16 +356,16 @@ class StarCraftBaseEnv(gym.Env):
     def _check_done(self):
         """Returns true if the episode was ended"""
         return (
-                # bool(self.state.game_ended) or
-                # self.state.battle_just_ended or
-                len(self.state.units[0]) == 0 or \
-                len(self.state.units[1]) == 0 or \
+                # bool(self.state1.game_ended) or
+                # self.state1.battle_just_ended or
+                len(self.state1.units[self.state1.player_id]) == 0 or \
+                len(self.state2.units[self.state2.player_id]) == 0 or \
                 self.episode_steps == self.max_episode_steps)
 
     def _has_won(self):
         return (
-            len(self.state.units[0]) > 0 and \
-            len(self.state.units[1]) == 0
+            len(self.state1.units[self.state1.player_id]) > 0 and \
+            len(self.state2.units[self.state2.player_id]) == 0
         )
 
     def _get_info(self):
