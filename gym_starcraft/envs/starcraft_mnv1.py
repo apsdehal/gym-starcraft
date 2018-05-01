@@ -172,6 +172,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
                 obs_idx = 5 + enemy_idx * 5
+
                 if distance <= self.vision:
                     curr_obs[obs_idx] = (myself.x - enemy.x) / (self.vision)
                     curr_obs[obs_idx + 1] = (myself.y - enemy.y) / (self.vision)

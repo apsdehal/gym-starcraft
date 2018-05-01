@@ -218,7 +218,11 @@ class StarCraftBaseEnv(gym.Env):
 
         for unit in self.state2.units[self.state2.player_id]:
             opp_unit = func(unit, self.state2, self.state1.player_id)
+            dist = utils.get_distance(opp_unit.x, opp_unit.y, unit.x, unit.y)
+            vision = tcc.staticvalues['sightRange'][unit.type] / DISTANCE_FACTOR
 
+            if dist > vision:
+                continue
             if opp_unit is not None:
                 cmds.append([
                     tcc.command_unit_protected, unit.id,
@@ -304,17 +308,17 @@ class StarCraftBaseEnv(gym.Env):
 
     def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=256):
         if player_id == self.state1.player_id:
-            max_coord = (end - start) // 2 - self.vision // 2
+            max_coord = (end - start) // 2 - self.vision // 4
             min_coord = 0
         else:
             max_coord = (end - start)
-            min_coord = (end - start) // 2 + self.vision // 2
+            min_coord = (end - start) // 2 + self.vision // 4
 
         if x < 0:
             x = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
 
         if y < 0:
-            y = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
+            y = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
         commands = []
 
         for _ in range(quantity):
