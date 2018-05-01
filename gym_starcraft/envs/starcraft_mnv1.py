@@ -19,7 +19,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.nenemies = args.nenemies
         super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
                                               args.config_path, args.server_ip,
-                                              args.server_port, args.speed,
+                                              args.server_port, args.ai_type, args.speed,
                                               args.frame_skip, args.set_gui, args.self_play,
                                               args.max_steps, final_init)
         # TODO: We had to do this twice so that action_space is well defined.
@@ -151,7 +151,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             curr_obs = full_obs[idx]
             curr_obs[0] = myself.x / self.state1.map_size[0]
             curr_obs[1] = myself.y / self.state1.map_size[1]
-            curr_obs[2] = myself.health / myself.max_health
+            curr_obs[2] = (myself.health + myself.shield) / (myself.max_health + myself.max_shield)
             curr_obs[3] = myself.groundCD / myself.maxCD
             curr_obs[4] = self.prev_actions[idx] / self.nactions
 
@@ -181,7 +181,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                     curr_obs[obs_idx + 1] = 0
                     curr_obs[obs_idx + 2] = 1
 
-                curr_obs[obs_idx + 3] = enemy.health / enemy.max_health
+                curr_obs[obs_idx + 3] = (enemy.health + enemy.shield) / (enemy.max_health + enemy.max_shield)
                 curr_obs[obs_idx + 4] = enemy.groundCD / enemy.maxCD
 
         return full_obs
@@ -213,8 +213,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3] * 3
 
             # If the agent has attacked and we have won, give positive reward
+            # which include some scaling factor of number of enemies and remaining health
             if self._has_won() == 1 and self.attack_map[idx].any():
-                reward[idx] += +15 + 6 * self.nenemies
+                reward[idx] += +15 + 3 * self.nenemies + self.obs_pre[idx][2] * 3
             elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
                 reward[idx] += 2
             else:
