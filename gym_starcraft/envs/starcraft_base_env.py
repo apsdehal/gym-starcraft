@@ -322,7 +322,7 @@ class StarCraftBaseEnv(gym.Env):
             x = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
 
         if y < 0:
-            y = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
+            y = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
         commands = []
 
         for _ in range(quantity):

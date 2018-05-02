@@ -36,7 +36,9 @@ def get_parser():
     parser.add_argument('--set_gui', action="store_true", default=False,
                         help="Show GUI")
     parser.add_argument('--initialize_together', action="store_true", default=False,
-                        help="Show GUI")
+                        help="Initialize our units together")
+    parser.add_argument('--initialize_enemy_together', action="store_true", default=False,
+                        help="Initialize enemy's units together")
     parser.add_argument('--self_play', action='store_true', default=False,
                         help='Should play with self')
     parser.add_argument('--full_vision', action='store_true', default=False,

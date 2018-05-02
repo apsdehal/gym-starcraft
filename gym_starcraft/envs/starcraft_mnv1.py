@@ -33,30 +33,31 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.nenemies = args.nenemies
 
         self.initialize_together = args.initialize_together
+        self.initialize_enemy_together = args.initialize_enemy_together
         self.init_range_start = args.init_range_start
         self.init_range_end = args.init_range_end
 
+        # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
+        # initialize x and y coordinates within 100 and 150
+        self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1,
+                                self.init_range_start, self.init_range_end)
+                                for _ in range(self.nagents)]
+
+        self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1,
+                                    self.init_range_start, self.init_range_end)
+                                    for _ in range(self.nenemies)]
         if self.initialize_together:
-            # 0 for marine, 37 for zergling
+            # 0 for marine, 37 for zergling, 2 for vulture, 65 for zealot
             self.my_unit_pairs = [(args.our_unit_type, self.nagents, -1, -1,
                                    self.init_range_start, self.init_range_end)]
+
+        if self.initialize_enemy_together:
             self.enemy_unit_pairs = [(args.enemy_unit_type, self.nenemies, -1, -1,
                                       self.init_range_start, self.init_range_end)]
-        else:
-            # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
-            # initialize x and y coordinates within 100 and 150
-            self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1,
-                                   self.init_range_start, self.init_range_end)
-                                    for _ in range(self.nagents)]
-
-            self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1,
-                                      self.init_range_start, self.init_range_end)
-                                        for _ in range(self.nenemies)]
 
         self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
         self.full_vision = args.full_vision
         self.free_movement = args.free_movement
-
 
         if hasattr(args, 'unlimited_attack_range'):
             self.unlimited_attack_range = True
@@ -237,7 +238,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             # If the agent has attacked and we have won, give positive reward
             # which include some scaling factor of number of enemies and remaining health
             if self._has_won() == 1 and self.attack_map[idx].any():
-                reward[idx] += +15 + 3 * self.nenemies + self.obs_pre[idx][2] * 3
+                reward[idx] += +5 * self.nenemies + self.obs_pre[idx][2] * 3
             elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
                 reward[idx] += 2
             else:
