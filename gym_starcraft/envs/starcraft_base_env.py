@@ -23,6 +23,7 @@ class StarCraftBaseEnv(gym.Env):
                  server_ip='127.0.0.1',
                  server_port=11111,
                  ai_type='builtin',
+                 full_vision=False,
                  speed=0, frame_skip=1, set_gui=0, self_play=0,
                  max_episode_steps=200, final_init=True):
 
@@ -43,6 +44,7 @@ class StarCraftBaseEnv(gym.Env):
         self.set_gui = set_gui
         self.frame_count = 0
         self.ai_type = ai_type
+        self.full_vision = full_vision
 
 
         config = None
@@ -218,12 +220,13 @@ class StarCraftBaseEnv(gym.Env):
 
         for unit in self.state2.units[self.state2.player_id]:
             opp_unit = func(unit, self.state2, self.state1.player_id)
+
+            if opp_unit is None:
+                continue
             dist = utils.get_distance(opp_unit.x, opp_unit.y, unit.x, unit.y)
             vision = tcc.staticvalues['sightRange'][unit.type] / DISTANCE_FACTOR
 
-            if dist > vision:
-                continue
-            if opp_unit is not None:
+            if (dist <= vision or self.full_vision):
                 cmds.append([
                     tcc.command_unit_protected, unit.id,
                     tcc.unitcommandtypes.Attack_Unit, opp_unit.id
@@ -296,6 +299,7 @@ class StarCraftBaseEnv(gym.Env):
 
         self.obs = self._make_observation()
         self.obs_pre = self.obs
+
         return self.obs
 
     def _get_create_units_command(self, player_id, unit_pair):
@@ -400,7 +404,10 @@ class StarCraftBaseEnv(gym.Env):
 
     def _get_info(self):
         """Returns a dictionary contains debug info"""
-        return {}
+        return {
+            'state1': self.state1,
+            'state2': self.state2
+        }
 
     def _update_stat(self):
         if self._check_done():

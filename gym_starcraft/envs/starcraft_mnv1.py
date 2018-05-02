@@ -14,12 +14,13 @@ DISTANCE_FACTOR = 8
 class StarCraftMNv1(sc.StarCraftBaseEnv):
     TIMESTEP_PENALTY = -0.01
 
-    def __init__(self, args, final_init):
+    def __init__(self, args, final_init=True):
         self.nagents = args.nagents
         self.nenemies = args.nenemies
         super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
                                               args.config_path, args.server_ip,
-                                              args.server_port, args.ai_type, args.speed,
+                                              args.server_port, args.ai_type,
+                                              args.full_vision, args.speed,
                                               args.frame_skip, args.set_gui, args.self_play,
                                               args.max_steps, final_init)
         # TODO: We had to do this twice so that action_space is well defined.
@@ -27,26 +28,39 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.nagents = args.nagents
         self.nenemies = args.nenemies
 
-        initialize_together = args.initialize_together
-        init_range_start = args.init_range_start
-        init_range_end = args.init_range_end
+        self.initialize_together = args.initialize_together
+        self.init_range_start = args.init_range_start
+        self.init_range_end = args.init_range_end
 
-        if initialize_together:
+        if self.initialize_together:
             # 0 for marine, 37 for zergling
-            self.my_unit_pairs = [(args.our_unit_type, self.nagents, -1, -1, init_range_start, init_range_end)]
-            self.enemy_unit_pairs = [(args.enemy_unit_type, self.nenemies, -1, -1, init_range_start, init_range_end)]
+            self.my_unit_pairs = [(args.our_unit_type, self.nagents, -1, -1,
+                                   self.init_range_start, self.init_range_end)]
+            self.enemy_unit_pairs = [(args.enemy_unit_type, self.nenemies, -1, -1,
+                                      self.init_range_start, self.init_range_end)]
         else:
             # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
             # initialize x and y coordinates within 100 and 150
-            self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1, init_range_start, init_range_end)
+            self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1,
+                                   self.init_range_start, self.init_range_end)
                                     for _ in range(self.nagents)]
 
-            self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1, init_range_start, init_range_end)
+            self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1,
+                                      self.init_range_start, self.init_range_end)
                                         for _ in range(self.nenemies)]
 
         self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
+        self.full_vision = args.full_vision
+        self.free_movement = args.free_movement
 
-        self.move_steps = ((0, 1), (0, -1), (-1, 0), (1, 0), (0, 0))
+
+        if hasattr(args, 'unlimited_attack_range'):
+            self.unlimited_attack_range = True
+        else:
+            self.unlimited_attack_range = False
+
+        self.move_steps = ((0, 1), (1, 1), (1, 0), (1, -1), (0, -1),
+                           (-1, -1), (-1, 0), (-1, 1), (0, 0))
 
         self.prev_actions = np.zeros(self.nagents)
 
@@ -90,12 +104,18 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             prev_action = self.prev_actions[idx]
 
             if action < len(self.move_steps):
-                x2 = my_unit.x + self.move_steps[action][0]
-                y2 = my_unit.y + self.move_steps[action][1]
+                new_x = my_unit.x + self.move_steps[action][0]
+                new_y = my_unit.y + self.move_steps[action][1]
+
+                new_x = min(new_x, self.init_range_end)
+                new_y = min(new_y, self.init_range_end)
+
+                new_x = max(new_x, self.init_range_start)
+                new_y = max(new_y, self.init_range_start)
 
                 cmds.append([
                     tcc.command_unit, my_unit.id,
-                    tcc.unitcommandtypes.Move, -1, int(x2), int(y2), -1
+                    tcc.unitcommandtypes.Move, -1, int(new_x), int(new_y), -1
                 ])
             else:
                 enemy_id = action - len(self.move_steps)
@@ -118,7 +138,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 if prev_action < len(self.move_steps):
                     unit_command = tcc.command_unit
 
-                if distance <= my_unit.groundRange:
+                if distance <= my_unit.groundRange or self.unlimited_attack_range:
                     cmds.append([
                         unit_command, my_unit.id,
                         tcc.unitcommandtypes.Attack_Unit, enemy_unit.id
@@ -173,7 +193,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
                 obs_idx = 5 + enemy_idx * 5
 
-                if distance <= self.vision:
+                if distance <= self.vision or self.full_vision:
                     curr_obs[obs_idx] = (myself.x - enemy.x) / (self.vision)
                     curr_obs[obs_idx + 1] = (myself.y - enemy.y) / (self.vision)
                     curr_obs[obs_idx + 2] = 0
@@ -236,7 +256,10 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             if agent_id not in self.my_current_units:
                 alive_mask[idx] = 0
 
-        return {'alive_mask': alive_mask}
+        info = {'alive_mask': alive_mask}
+        info.update(super()._get_info())
+
+        return info
 
     def step(self, action):
         return self._step(action)
