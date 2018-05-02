@@ -58,7 +58,7 @@ if __name__ == '__main__':
         episodes += 1
         state1 = info['state1']
         state2 = info['state2']
-        print("Reward: ", reward)
+        print("Reward: ", total_reward)
         print("Success: ", success / episodes)
         print("Alive:", "Mine:", len(state1.units[state1.player_id]),
               "Theirs:", len(state2.units[state2.player_id]))

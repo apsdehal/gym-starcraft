@@ -40,8 +40,10 @@ def get_parser():
     parser.add_argument('--self_play', action='store_true', default=False,
                         help='Should play with self')
     parser.add_argument('--full_vision', action='store_true', default=False,
-                        help='Full vision on map')
+                        help='Unlimited vision on map')
     parser.add_argument('--free_movement', action='store_true', default=False,
-                        help='Free movement on map')
+                        help='Unlimited movement on map')
+    parser.add_argument('--unlimited_attack_range', action='store_true', default=False,
+                        help='Attack range over full map')
 
     return parser

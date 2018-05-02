@@ -17,6 +17,10 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
     def __init__(self, args, final_init=True):
         self.nagents = args.nagents
         self.nenemies = args.nenemies
+
+        self.move_steps = ((0, 1), (1, 0), (0, -1), (-1, 0), (0, 0),
+                           (1, 1), (1, -1),(-1, -1),(-1, 1))
+
         super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
                                               args.config_path, args.server_ip,
                                               args.server_port, args.ai_type,
@@ -59,14 +63,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         else:
             self.unlimited_attack_range = False
 
-        self.move_steps = ((0, 1), (1, 1), (1, 0), (1, -1), (0, -1),
-                           (-1, -1), (-1, 0), (-1, 1), (0, 0))
-
         self.prev_actions = np.zeros(self.nagents)
 
     def _action_space(self):
         # Move up, down, left, right, stay, attack agents i to n
-        self.nactions = 5 + self.nenemies
+        self.nactions = len(self.move_steps) + self.nenemies
 
         # return spaces.Box(np.array(action_low), np.array(action_high))
         return spaces.MultiDiscrete([self.nactions])
