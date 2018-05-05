@@ -70,7 +70,6 @@ class StarCraftBaseEnv(gym.Env):
         options['OPENBW_LOCAL_PATH'] = tmpfile
 
         cmds.append(self.bwapi_launcher_path)
-        print(options)
 
         proc1 = subprocess.Popen(cmds,
                                 cwd=os.path.expanduser(self.torchcraft_dir),
@@ -105,6 +104,7 @@ class StarCraftBaseEnv(gym.Env):
         self.episode_steps = 0
         self.map = 'maps/micro/micro-empty2.scm'
         self.first_reset = True
+        self._set_unit_attributes()
 
         # TODO: Move them in proper setters and getters
         # NOTE: These should be overrided in derived class
@@ -164,6 +164,55 @@ class StarCraftBaseEnv(gym.Env):
             pass
         else:
             os.kill(child_pid, signal.SIGTERM)
+
+    def _set_unit_attributes(self):
+        # Creating a map for easy access of max cooldowns and other things
+        # NOTE: At the moment, this wrapper supports only air vs air and ground vs ground
+        # matches, some minor changes will be required to support mix.
+        self.unit_attributes = {
+            # Marine
+            0: {
+                'cdAttribute': 'groundCD',
+                'maxCD': 15,
+                'rangeAttribute': 'groundRange'
+            },
+            # Vulture
+            2: {
+                'cdAttribute': 'groundCD',
+                'maxCD': 30,
+                'rangeAttribute': 'groundRange'
+            },
+            # Wraith
+            8: {
+                'cdAttribute': 'airCD',
+                'maxCD': 22,
+                'rangeAttribute': 'airRange'
+            },
+            # Corsair
+            60: {
+                'cdAttribute': 'airCD',
+                'maxCD': 8,
+                'rangeAttribute': 'airRange'
+            },
+            # Zealot
+            65: {
+                'cdAttribute': 'groundCD',
+                'maxCD': 22,
+                'rangeAttribute': 'groundRange'
+            },
+            # Zergling
+            37: {
+                'cdAttribute': 'groundCD',
+                'maxCD': 8,
+                'rangeAttribute': 'groundRange'
+            },
+            # Mutalisk
+            43: {
+                'cdAttribute': 'airCD',
+                'maxCD': 30,
+                'rangeAttribute': 'airRange'
+            }
+        }
 
     def _step(self, action):
 
@@ -251,7 +300,6 @@ class StarCraftBaseEnv(gym.Env):
 
             for i in range(10):
                 self._empty_step()
-
 
     def _reset(self):
         wins = self.episode_wins

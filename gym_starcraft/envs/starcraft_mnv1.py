@@ -4,7 +4,7 @@ from gym import spaces
 
 import torchcraft.Constants as tcc
 import gym_starcraft.utils as utils
-import gym_starcraft.envs.starcraft_base_env as  sc
+import gym_starcraft.envs.starcraft_base_env as sc
 
 # Note: Somehow starcraft return coordinates in unit's x and y
 # are normalized by 8, for e.g. 400, 400 is converted to 50, 50 and 50, 50 to 6, 6
@@ -139,8 +139,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
                 if prev_action < len(self.move_steps):
                     unit_command = tcc.command_unit
-
-                if distance <= my_unit.groundRange or self.unlimited_attack_range:
+                range_attribute = self.unit_attributes[my_unit.type]['rangeAttribute']
+                if distance <= getattr(my_unit, range_attribute) or self.unlimited_attack_range:
                     cmds.append([
                         unit_command, my_unit.id,
                         tcc.unitcommandtypes.Attack_Unit, enemy_unit.id
@@ -174,7 +174,10 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             curr_obs[0] = myself.x / self.state1.map_size[0]
             curr_obs[1] = myself.y / self.state1.map_size[1]
             curr_obs[2] = (myself.health + myself.shield) / (myself.max_health + myself.max_shield)
-            curr_obs[3] = myself.groundCD / myself.maxCD
+
+            cd = getattr(myself, self.unit_attributes[myself.type]['cdAttribute'])
+
+            curr_obs[3] = cd / self.unit_attributes[myself.type]['maxCD']
             curr_obs[4] = self.prev_actions[idx] / self.nactions
 
             for enemy_idx in range(self.nenemies):
@@ -205,7 +208,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                     curr_obs[obs_idx + 2] = 1
 
                 curr_obs[obs_idx + 3] = (enemy.health + enemy.shield) / (enemy.max_health + enemy.max_shield)
-                curr_obs[obs_idx + 4] = enemy.groundCD / enemy.maxCD
+                cd = getattr(enemy, self.unit_attributes[enemy.type]['cdAttribute'])
+                curr_obs[obs_idx + 4] =  cd / self.unit_attributes[enemy.type]['maxCD']
 
         return full_obs
 
