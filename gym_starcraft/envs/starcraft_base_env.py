@@ -211,6 +211,12 @@ class StarCraftBaseEnv(gym.Env):
                 'cdAttribute': 'airCD',
                 'maxCD': 30,
                 'rangeAttribute': 'airRange'
+            },
+            # Medic
+            34: {
+                'cdAttribute': 'groundCD',
+                'maxCD': 1,
+                'rangeAttribute': 'groundRange'
             }
         }
 

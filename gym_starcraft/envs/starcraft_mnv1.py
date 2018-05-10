@@ -251,6 +251,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
         if self._has_won() == 1:
             self.episode_wins += 1
+
         return reward
 
     def _get_info(self):

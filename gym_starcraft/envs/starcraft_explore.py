@@ -1,0 +1,180 @@
+import numpy as np
+from gym import spaces
+
+import torchcraft.Constants as tcc
+import gym_starcraft.utils as utils
+import gym_starcraft.envs.starcraft_mnv1 as sc
+import random
+
+DISTANCE_FACTOR = 8
+
+class StarCraftExplore(sc.StarCraftMNv1):
+    TIMESTEP_PENALTY = -0.05
+    ONPREY_REWARD = 0.05
+
+    def __init__(self, args, final_init=True):
+        if args.nenemies > 1:
+            raise RuntimeError('Only 1 enemy allowed in this case')
+
+        if args.enemy_unit_type != 34:
+            print("Warning: Only medic can be used as enemy in explore mode")
+
+        args.enemy_unit_type = 34
+
+        super(StarCraftExplore, self).__init__(args, final_init)
+
+        if args.cooperation_setting == 'normal':
+            self.prey_exponent = 0
+        elif args.cooperation_setting == 'cooperative':
+            self.prey_exponent = 1
+        else:
+            self.prey_exponent = -1
+
+        self.vision = args.explore_vision
+
+
+    def _action_space(self):
+        self.nactions = len(self.move_steps)
+
+        return spaces.MultiDiscrete([self.nactions])
+
+    def _observation_space(self):
+        # absolute x, absolute y, prev_action, (relative_x, relative_y, in_vision) * nenemy
+
+        obs_low = [0.0, 0.0, 0.0] + [-1.0, -1.0, 0.0] * self.nenemies
+        obs_high = [1.0, 1.0, 1.0] + [1.0, 1.0, 1.0] * self.nenemies
+
+        return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
+
+    def _has_step_completed(self):
+        return True
+
+    def _make_observation(self):
+        myself = None
+        enemy = None
+
+
+        full_obs = np.zeros((self.nagents,) + self.observation_space.shape)
+
+        for idx in range(self.nagents):
+            agent_id = self.agent_ids[idx]
+
+            if agent_id in self.my_current_units:
+                myself = self.my_current_units[agent_id]
+            else:
+                myself = None
+
+            if myself is None:
+                continue
+
+            curr_obs = full_obs[idx]
+            curr_obs[0] = myself.x / self.state1.map_size[0]
+            curr_obs[1] = myself.y / self.state1.map_size[1]
+
+            curr_obs[2] = self.prev_actions[idx] / self.nactions
+
+            for enemy_idx in range(self.nenemies):
+                enemy_id = self.enemy_ids[enemy_idx]
+                if enemy_id in self.enemy_current_units:
+                    enemy = self.enemy_current_units[enemy_id]
+                else:
+                    enemy = None
+
+                if enemy is None:
+                    continue
+
+                if (myself.attacking or myself.starting_attack) and \
+                    self.prev_actions[idx] == enemy_idx + len(self.move_steps):
+                    self.attack_map[idx][enemy_idx] = 1
+
+                distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
+
+                obs_idx = 3 + enemy_idx * 3
+
+                if distance <= self.vision or self.full_vision:
+                    curr_obs[obs_idx] = (myself.x - enemy.x) / (self.vision)
+                    curr_obs[obs_idx + 1] = (myself.y - enemy.y) / (self.vision)
+                    curr_obs[obs_idx + 2] = 0
+                else:
+                    curr_obs[obs_idx] = 0
+                    curr_obs[obs_idx + 1] = 0
+                    curr_obs[obs_idx + 2] = 1
+
+        return full_obs
+
+    def _get_enemy_commands(self):
+        return []
+
+
+    def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=256):
+        if x < 0:
+            x = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
+
+        if y < 0:
+            y = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
+        commands = []
+
+        for _ in range(quantity):
+            command = [
+                tcc.command_openbw,
+                tcc.openbwcommandtypes.SpawnUnit,
+                player_id,
+                unit_type,
+                x,
+                y,
+            ]
+            commands.append(command)
+
+        return commands
+
+
+    def _compute_reward(self):
+        reward = np.zeros(self.nagents)
+
+        self.on_prey = 0
+        enemy_id = self.enemy_ids[0]
+        enemy = self.enemy_current_units[enemy_id]
+
+        for idx in range(self.nagents):
+            if self.agent_ids[idx] not in self.my_current_units:
+                continue
+
+            unit = self.my_current_units[self.agent_ids[idx]]
+
+            dist = utils.get_distance(unit.x, unit.y, enemy.x, enemy.y)
+
+            if dist <= self.vision:
+                self.on_prey += 1
+
+        for idx in range(self.nagents):
+            if self.agent_ids[idx] not in self.my_current_units:
+                continue
+
+            unit = self.my_current_units[self.agent_ids[idx]]
+
+            dist = utils.get_distance(unit.x, unit.y, enemy.x, enemy.y)
+
+            if dist <= self.vision:
+                reward[idx] += self.ONPREY_REWARD * (self.on_prey ** self.prey_exponent)
+            else:
+                reward[idx] += self.TIMESTEP_PENALTY
+
+        return reward
+
+    def reward_terminal(self):
+        reward = np.zeros(self.nagents)
+
+        if self._has_won() == 1:
+            self.episode_wins += 1
+
+        return reward
+
+    def _has_won(self):
+        return self.on_prey == self.nagents
+
+
+    def _check_done(self):
+        return (
+            self.episode_steps == self.max_episode_steps or \
+            self.on_prey == self.nagents
+        )
