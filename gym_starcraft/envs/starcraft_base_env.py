@@ -233,7 +233,8 @@ class StarCraftBaseEnv(gym.Env):
 
         self.episode_steps += 1
 
-        self.client1.send(self._make_commands(action))
+        cmds = self._make_commands(action)
+        self.client1.send(cmds)
         self.state1 = self.client1.recv()
         self.client2.send(self._get_enemy_commands())
         self.state2 = self.client2.recv()

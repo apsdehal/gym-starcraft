@@ -31,6 +31,8 @@ class StarCraftExplore(sc.StarCraftMNv1):
             self.prey_exponent = -1
 
         self.vision = args.explore_vision
+        self.near_enemy = np.zeros(self.nagents)
+        self.stay_near_enemy = args.stay_near_enemy
 
 
     def _action_space(self):
@@ -48,6 +50,46 @@ class StarCraftExplore(sc.StarCraftMNv1):
 
     def _has_step_completed(self):
         return True
+
+
+    def _make_commands(self, actions):
+        cmds = []
+
+        if self.state1 is None or actions is None:
+            return cmds
+
+        for idx in range(self.nagents):
+            agent_id = self.agent_ids[idx]
+
+            if agent_id not in self.my_current_units:
+                continue
+
+            my_unit = self.my_current_units[agent_id]
+            action = actions[idx]
+
+            if self.near_enemy[idx] == 1 and self.stay_near_enemy:
+                action = 4
+
+            if action >= len(self.move_steps):
+                action = 4
+
+            new_x = my_unit.x + self.move_steps[action][0]
+            new_y = my_unit.y + self.move_steps[action][1]
+
+            new_x = min(new_x, self.init_range_end)
+            new_y = min(new_y, self.init_range_end)
+
+            new_x = max(new_x, self.init_range_start)
+            new_y = max(new_y, self.init_range_start)
+
+            cmds.append([
+                tcc.command_unit, my_unit.id,
+                tcc.unitcommandtypes.Move, -1, int(new_x), int(new_y), -1
+            ])
+
+        self.prev_actions = actions
+        return cmds
+
 
     def _make_observation(self):
         myself = None
@@ -131,7 +173,6 @@ class StarCraftExplore(sc.StarCraftMNv1):
     def _compute_reward(self):
         reward = np.zeros(self.nagents)
 
-        self.on_prey = 0
         enemy_id = self.enemy_ids[0]
         enemy = self.enemy_current_units[enemy_id]
 
@@ -144,7 +185,9 @@ class StarCraftExplore(sc.StarCraftMNv1):
             dist = utils.get_distance(unit.x, unit.y, enemy.x, enemy.y)
 
             if dist <= self.vision:
-                self.on_prey += 1
+                self.near_enemy[idx] = 1
+            else:
+                self.near_enemy[idx] = 0
 
         for idx in range(self.nagents):
             if self.agent_ids[idx] not in self.my_current_units:
@@ -155,7 +198,7 @@ class StarCraftExplore(sc.StarCraftMNv1):
             dist = utils.get_distance(unit.x, unit.y, enemy.x, enemy.y)
 
             if dist <= self.vision:
-                reward[idx] += self.ONPREY_REWARD * (self.on_prey ** self.prey_exponent)
+                reward[idx] += self.ONPREY_REWARD * (np.count_nonzero(self.near_enemy) ** self.prey_exponent)
             else:
                 reward[idx] += self.TIMESTEP_PENALTY
 
@@ -170,11 +213,11 @@ class StarCraftExplore(sc.StarCraftMNv1):
         return reward
 
     def _has_won(self):
-        return self.on_prey == self.nagents
+        return np.count_nonzero(self.near_enemy) == self.nagents
 
 
     def _check_done(self):
         return (
             self.episode_steps == self.max_episode_steps or \
-            self.on_prey == self.nagents
+            np.count_nonzero(self.near_enemy) == self.nagents
         )
