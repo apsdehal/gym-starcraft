@@ -236,13 +236,16 @@ class StarCraftBaseEnv(gym.Env):
         cmds = self._make_commands(action)
         self.client1.send(cmds)
         self.state1 = self.client1.recv()
-        self.client2.send(self._get_enemy_commands())
+
+        enemy_cmds = self._get_enemy_commands()
+
+        self.client2.send(enemy_cmds)
         self.state2 = self.client2.recv()
 
         self._skip_frames()
 
         while not self._has_step_completed():
-            self._empty_step()
+            self._skip_frames(1)
 
         self.obs = self._make_observation()
         reward = self._compute_reward()
@@ -259,9 +262,13 @@ class StarCraftBaseEnv(gym.Env):
         self.client2.send([])
         self.state2 = self.client2.recv()
 
-    def _skip_frames(self):
+    def _skip_frames(self, skips=-1):
+        if skips == -1:
+            skips = self.frame_skip
+
         count = 0
-        while count < self.frame_skip:
+
+        while count < skips:
             self._empty_step()
             count += 1
 

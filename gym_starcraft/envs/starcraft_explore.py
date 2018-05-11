@@ -16,15 +16,17 @@ class StarCraftExplore(sc.StarCraftMNv1):
         if args.nenemies > 1:
             raise RuntimeError('Only 1 enemy allowed in this case')
 
-        if args.enemy_unit_type != 34:
-            print("Warning: Only medic can be used as enemy in explore mode")
+        if args.enemy_unit_type != 34 or args.our_unit_type != 34:
+            print("Warning: Only medic can be used as unit in explore mode")
 
         args.enemy_unit_type = 34
+        args.our_unit_type = 34
 
         super(StarCraftExplore, self).__init__(args, final_init)
 
         if args.cooperation_setting == 'normal':
             self.prey_exponent = 0
+            self.ONPREY_REWARD = 0
         elif args.cooperation_setting == 'cooperative':
             self.prey_exponent = 1
         else:
@@ -33,6 +35,7 @@ class StarCraftExplore(sc.StarCraftMNv1):
         self.vision = args.explore_vision
         self.near_enemy = np.zeros(self.nagents)
         self.stay_near_enemy = args.stay_near_enemy
+        self.step_size = args.step_size
 
 
     def _action_space(self):
@@ -68,13 +71,23 @@ class StarCraftExplore(sc.StarCraftMNv1):
             action = actions[idx]
 
             if self.near_enemy[idx] == 1 and self.stay_near_enemy:
-                action = 4
+                cmds.append([
+                    tcc.command_unit,
+                    my_unit.id,
+                    tcc.unitcommandtypes.Stop
+                ])
+                continue
 
             if action >= len(self.move_steps):
-                action = 4
+                cmds.append([
+                    tcc.command_unit,
+                    my_unit.id,
+                    tcc.unitcommandtypes.Stop
+                ])
+                continue
 
-            new_x = my_unit.x + self.move_steps[action][0]
-            new_y = my_unit.y + self.move_steps[action][1]
+            new_x = my_unit.x + self.move_steps[action][0] * self.step_size
+            new_y = my_unit.y + self.move_steps[action][1] * self.step_size
 
             new_x = min(new_x, self.init_range_end)
             new_y = min(new_y, self.init_range_end)
@@ -193,11 +206,7 @@ class StarCraftExplore(sc.StarCraftMNv1):
             if self.agent_ids[idx] not in self.my_current_units:
                 continue
 
-            unit = self.my_current_units[self.agent_ids[idx]]
-
-            dist = utils.get_distance(unit.x, unit.y, enemy.x, enemy.y)
-
-            if dist <= self.vision:
+            if self.near_enemy[idx] == 1:
                 reward[idx] += self.ONPREY_REWARD * (np.count_nonzero(self.near_enemy) ** self.prey_exponent)
             else:
                 reward[idx] += self.TIMESTEP_PENALTY
@@ -219,5 +228,5 @@ class StarCraftExplore(sc.StarCraftMNv1):
     def _check_done(self):
         return (
             self.episode_steps == self.max_episode_steps or \
-            np.count_nonzero(self.near_enemy) == self.nagents
+            (self.ONPREY_REWARD == 0 and np.count_nonzero(self.near_enemy) == self.nagents)
         )

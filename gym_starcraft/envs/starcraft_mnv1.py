@@ -58,6 +58,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
         self.full_vision = args.full_vision
         self.free_movement = args.free_movement
+        self.step_size = args.step_size
 
         if hasattr(args, 'unlimited_attack_range'):
             self.unlimited_attack_range = True
@@ -106,8 +107,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             prev_action = self.prev_actions[idx]
 
             if action < len(self.move_steps):
-                new_x = my_unit.x + self.move_steps[action][0]
-                new_y = my_unit.y + self.move_steps[action][1]
+                new_x = my_unit.x + self.move_steps[action][0] * self.step_size
+                new_y = my_unit.y + self.move_steps[action][1] * self.step_size
 
                 new_x = min(new_x, self.init_range_end)
                 new_y = min(new_y, self.init_range_end)
