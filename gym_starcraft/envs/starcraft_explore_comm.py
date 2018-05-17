@@ -40,7 +40,7 @@ class StarCraftExploreComm(sc.StarCraftExplore):
         if on_prey == 0:
             reward[self.nfriendly] -= self.TIMESTEP_PENALTY
         else:
-            reward[self.nfriendly] -= self.ONPREY_REWARD * (np.count_nonzero(self.near_enemy) ** self.prey_exponent)
+            reward[self.nfriendly] = 0
 
         return reward
 
