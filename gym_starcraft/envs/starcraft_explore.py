@@ -13,7 +13,7 @@ class StarCraftExplore(sc.StarCraftMNv1):
     ONPREY_REWARD = 0.05
 
     def __init__(self, args, final_init=True):
-        if args.nenemies > 1:
+        if args.nenemies != 1:
             raise RuntimeError('Only 1 enemy allowed in this case')
 
         if args.enemy_unit_type != 34 or args.our_unit_type != 34:
@@ -44,10 +44,10 @@ class StarCraftExplore(sc.StarCraftMNv1):
         return spaces.MultiDiscrete([self.nactions])
 
     def _observation_space(self):
-        # absolute x, absolute y, prev_action, (relative_x, relative_y, in_vision) * nenemy
+        # absolute x, absolute y, (relative_x, relative_y, in_vision) * nenemy
 
-        obs_low = [0.0, 0.0, 0.0] + [-1.0, -1.0, 0.0] * self.nenemies
-        obs_high = [1.0, 1.0, 1.0] + [1.0, 1.0, 1.0] * self.nenemies
+        obs_low = [0.0, 0.0] + [-1.0, -1.0, 0.0] * self.nenemies
+        obs_high = [1.0, 1.0] + [1.0, 1.0, 1.0] * self.nenemies
 
         return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
 
@@ -126,8 +126,6 @@ class StarCraftExplore(sc.StarCraftMNv1):
             curr_obs[0] = myself.x / self.state1.map_size[0]
             curr_obs[1] = myself.y / self.state1.map_size[1]
 
-            curr_obs[2] = self.prev_actions[idx] / self.nactions
-
             for enemy_idx in range(self.nenemies):
                 enemy_id = self.enemy_ids[enemy_idx]
                 if enemy_id in self.enemy_current_units:
@@ -144,7 +142,7 @@ class StarCraftExplore(sc.StarCraftMNv1):
 
                 distance = utils.get_distance(myself.x, myself.y, enemy.x, enemy.y)
 
-                obs_idx = 3 + enemy_idx * 3
+                obs_idx = 2 + enemy_idx * 3
 
                 if distance <= self.vision or self.full_vision:
                     curr_obs[obs_idx] = (myself.x - enemy.x) / (self.vision)
@@ -154,7 +152,6 @@ class StarCraftExplore(sc.StarCraftMNv1):
                     curr_obs[obs_idx] = 0
                     curr_obs[obs_idx + 1] = 0
                     curr_obs[obs_idx + 2] = 1
-
         return full_obs
 
     def _get_enemy_commands(self):
