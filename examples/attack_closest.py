@@ -1,6 +1,6 @@
 import math
 
-from gym_starcraft.envs.starcraft_mnv1 import StarCraftMNv1
+from gym_starcraft.envs.starcraft_mvn import StarCraftMvN
 from gym_starcraft.utils import get_closest
 from flags import get_parser
 
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     args.unlimited_attack_range = True
     args.unlimited_vision = True
 
-    env = StarCraftMNv1(args, final_init=True)
+    env = StarCraftMvN(args, final_init=True)
 
     agent = AttackClosestAgent(env.action_space)
     agent.set_move_steps(len(env.move_steps))

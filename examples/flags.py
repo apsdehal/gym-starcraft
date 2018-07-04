@@ -47,5 +47,8 @@ def get_parser():
                         help='Unlimited movement on map')
     parser.add_argument('--unlimited_attack_range', action='store_true', default=False,
                         help='Attack range over full map')
-
+    parser.add_argument('--enemy_comm', action='store_true', default=False,
+                        help='Test for enemy communication')
+    parser.add_argument('--step_size', type=int, default=8,
+                        help="Step of the agent, Default: 8")
     return parser

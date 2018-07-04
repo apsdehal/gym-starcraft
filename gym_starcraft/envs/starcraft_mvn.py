@@ -1,3 +1,8 @@
+'''
+Example implementation of M vs N units gym environment on top of base environment.
+To use a custom reward structure, command generator for this class, you can extend it
+and override the required functions
+'''
 import numpy as np
 
 from gym import spaces
@@ -6,12 +11,13 @@ import torchcraft.Constants as tcc
 import gym_starcraft.utils as utils
 import gym_starcraft.envs.starcraft_base_env as sc
 
-# Note: Somehow starcraft return coordinates in unit's x and y
-# are normalized by 8, for e.g. 400, 400 is converted to 50, 50 and 50, 50 to 6, 6
+# NOTE: Initial coordinates are to be given in exact x and y coordinates
+# Further on in every transaction we have one cell as unit and thus
+# distance factor must be considered
 DISTANCE_FACTOR = 8
 
-# N vs 1 marines, starcraft environment
-class StarCraftMNv1(sc.StarCraftBaseEnv):
+# M units vs N units, starcraft environment
+class StarCraftMvN(sc.StarCraftBaseEnv):
     TIMESTEP_PENALTY = -0.01
 
     def __init__(self, args, final_init=True):
@@ -21,12 +27,12 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.move_steps = ((0, 1), (1, 0), (0, -1), (-1, 0), (0, 0),
                            (1, 1), (1, -1),(-1, -1),(-1, 1))
 
-        super(StarCraftMNv1, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
-                                              args.config_path, args.server_ip,
-                                              args.server_port, args.ai_type,
-                                              args.full_vision, args.speed,
-                                              args.frame_skip, args.set_gui, args.self_play,
-                                              args.max_steps, final_init)
+        super(StarCraftMvN, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
+                                           args.config_path, args.server_ip,
+                                           args.server_port, args.ai_type,
+                                           args.full_vision, args.speed,
+                                           args.frame_skip, args.set_gui, args.self_play,
+                                           args.max_steps, final_init)
         # TODO: We had to do this twice so that action_space is well defined.
         # Fix this later
         self.nagents = args.nagents
@@ -37,8 +43,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         self.init_range_start = args.init_range_start
         self.init_range_end = args.init_range_end
 
-        # 0 is marine id, 1 is quantity, -1, -1, 100, 150 say that randomly
-        # initialize x and y coordinates within 100 and 150
+        # First is our unit's id, 1 is quantity, -1, -1, init_range_start, init_range_end
+        # say that randomly initialize x and y coordinates
+        # within init_range_start and init_range_end
         self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1,
                                 self.init_range_start, self.init_range_end)
                                 for _ in range(self.nagents)]
@@ -75,12 +82,9 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return spaces.MultiDiscrete([self.nactions])
 
     def _observation_space(self):
-        # absolute_x, absolute_y, relative_x, relative_y, in_vision, my_hp, enemy_hp, my_cooldown, enemy_cooldown
         # absolute x, absolute y, my_hp, my_cooldown, prev_action, (relative_x, relative_y, in_vision, enemy_hp, enemy_cooldown) * nenemy
         obs_low = [0.0, 0.0, 0.0, 0.0, 0.0] + [-1.0, -1.0, 0.0, 0.0, 0.0] * self.nenemies
         obs_high = [1.0, 1.0, 1.0, 1.0, 1.0] + [1.0, 1.0, 1.0, 1.0, 1.0] * self.nenemies
-        # obs_low = [0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        # obs_high = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
         return spaces.Box(np.array(obs_low), np.array(obs_high), dtype=np.float32)
 
@@ -116,6 +120,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
                 new_x = max(new_x, self.init_range_start)
                 new_y = max(new_y, self.init_range_start)
 
+                # Move commands always override previous commands (required for kiting)
                 cmds.append([
                     tcc.command_unit, my_unit.id,
                     tcc.unitcommandtypes.Move, -1, int(new_x), int(new_y), -1
@@ -138,9 +143,13 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
 
                 unit_command = tcc.command_unit_protected
 
+                # Send protected command only if previous command was attack
                 if prev_action < len(self.move_steps):
                     unit_command = tcc.command_unit
+
                 range_attribute = self.unit_attributes[my_unit.type]['rangeAttribute']
+
+                # Should be in attack range to attack
                 if distance <= getattr(my_unit, range_attribute) or self.unlimited_attack_range:
                     cmds.append([
                         unit_command, my_unit.id,
@@ -156,7 +165,6 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
     def _make_observation(self):
         myself = None
         enemy = None
-
 
         full_obs = np.zeros((self.nagents,) + self.observation_space.shape)
 
@@ -174,6 +182,8 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             curr_obs = full_obs[idx]
             curr_obs[0] = myself.x / self.state1.map_size[0]
             curr_obs[1] = myself.y / self.state1.map_size[1]
+
+            # To simplify add unit's health and shield points
             curr_obs[2] = (myself.health + myself.shield) / (myself.max_health + myself.max_shield)
 
             cd = getattr(myself, self.unit_attributes[myself.type]['cdAttribute'])
@@ -181,6 +191,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             curr_obs[3] = cd / self.unit_attributes[myself.type]['maxCD']
             curr_obs[4] = self.prev_actions[idx] / self.nactions
 
+            # Get observation for each enemy for each agent
             for enemy_idx in range(self.nenemies):
                 enemy_id = self.enemy_ids[enemy_idx]
                 if enemy_id in self.enemy_current_units:
@@ -232,12 +243,14 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return reward
 
     def reward_terminal(self):
+        # Terminal reward based on whether we won or not
         reward = np.zeros(self.nagents)
 
         for idx in range(self.nagents):
             # Give terminal negative reward of each enemies' health
             for enemy_idx in range(self.nenemies):
                 obs_idx = 5 + enemy_idx * 5
+                # 3 is the best scaling factor we found in our tests
                 reward[idx] += 0 - self.obs_pre[idx][obs_idx + 3] * 3
 
             # If the agent has attacked and we have won, give positive reward
@@ -245,9 +258,11 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
             if self._has_won() == 1 and self.attack_map[idx].any():
                 reward[idx] += +5 * self.nenemies + self.obs_pre[idx][2] * 3
             elif self.nagents == self.nenemies and len(self.my_current_units) > len(self.enemy_current_units):
+                # Give some reward in case we didn't won but we have more units alive than enemy
+                # Remove this to ensure agents have a destructive nature
                 reward[idx] += 2
             else:
-                # If it has finished, give whole agent's health as negative reward
+                # If it has finished, give whole agent's own health as negative reward
                 reward[idx] += 0 - self.obs_pre[idx][2] * 3
 
         if self._has_won() == 1:
@@ -256,6 +271,7 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return reward
 
     def _get_info(self):
+        # Add alive mask to info for use by downstream trainer
         alive_mask = np.ones(self.nagents)
 
         for idx in range(self.nagents):
@@ -273,5 +289,6 @@ class StarCraftMNv1(sc.StarCraftBaseEnv):
         return self._step(action)
 
     def reset(self):
+        # Reset the environment for next step
         self.attack_map = np.zeros((self.nagents, self.nenemies))
         return self._reset()
