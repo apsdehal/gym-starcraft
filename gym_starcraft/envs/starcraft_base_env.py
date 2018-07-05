@@ -28,13 +28,14 @@ class StarCraftBaseEnv(gym.Env):
             config_path {str} -- Path for configuration yml file (default: {'./config.yml'})
         """
 
+        self.init_from_kwargs(kwargs)
+
         self.action_space = self._action_space()
         self.observation_space = self._observation_space()
 
         self.config_path = config_path
         self.torchcraft_dir = torchcraft_dir
 
-        self.init_from_kwargs(kwargs)
 
         if not self.final_init:
             return
@@ -49,21 +50,15 @@ class StarCraftBaseEnv(gym.Env):
         self.first_reset = True
         self._set_unit_attributes()
 
-        # TODO: Move them in proper setters and getters
         # NOTE: These should be overrided in derived class
         # Should be a list of pairs where each pair is
         # (quantity, unit_type, x, y, start_coordinate, end_coordinate)
         # So (1, 0, -1, -1, 100, 150) will instantiate 0 type unit
         # at a random place between x = (100, 150) and y = (100, 150)
         # Leave empty if you want to instantiate anywhere in whole map
-        self.nagents = 1
         self.vision = 3
-        self.nenemies = 1
         self.my_unit_pairs = []
         self.enemy_unit_pairs = []
-
-        self._set_units()
-
         self.my_current_units = {}
         self.enemy_current_units = {}
         self.agent_ids = []
@@ -72,7 +67,7 @@ class StarCraftBaseEnv(gym.Env):
         self.obs = None
         self.obs_pre = None
         self.stat = {}
-
+        self._set_units()
 
     def init_from_kwargs(self, kwargs):
         """Init the base keyword arguments passed and set then as class properties"""
@@ -83,6 +78,7 @@ class StarCraftBaseEnv(gym.Env):
             'speed': 0,
             # AI Type: builtin | attack_closest | attack_weakest,
             'ai_type': 'builtin',
+            # Enable fog of war if false
             'full_vision': False,
             # Number of frame to skip
             'frame_skip': 1,
@@ -94,7 +90,11 @@ class StarCraftBaseEnv(gym.Env):
             # but init the class for other purposes (e.g. getting action space)
             'final_init': True,
             # Print summary at end of episode
-            'print_summary': False
+            'print_summary': False,
+            # Number of our agents
+            'nagents': 1,
+            # Number of enemy agents
+            'nenemies': 1
         }
 
         if kwargs is None:
@@ -111,6 +111,8 @@ class StarCraftBaseEnv(gym.Env):
         self.full_vision = kwargs['full_vision']
         self.final_init = kwargs['final_init']
         self.print_summary = kwargs['print_summary']
+        self.nagents = kwargs['nagents']
+        self.nenemies = kwargs['nenemies']
 
     def load_config_options(self):
         """Load config options from config file and environment"""
@@ -122,7 +124,7 @@ class StarCraftBaseEnv(gym.Env):
                 print('Config yaml error', err)
                 sys.exit(0)
 
-        self.bwapi_launcher_path = config['BWAPI_INSTALL_PREFIX']
+        self.bwapi_launcher_path = config['options']['BWAPI_INSTALL_PREFIX']
 
         # Check if environment contains BWAPI_INSTALL path
         if 'BWAPI_INSTALL_PREFIX' in os.environ:
@@ -144,26 +146,27 @@ class StarCraftBaseEnv(gym.Env):
         options['BWAPI_CONFIG_AUTO_MENU__AUTO_MENU'] = "LAN"
         options['OPENBW_LAN_MODE'] = "LOCAL"
         options['OPENBW_LOCAL_PATH'] = tmpfile
+        options['BWAPI_CONFIG_AUTO_MENU__MAP'] = os.path.abspath(options['BWAPI_CONFIG_AUTO_MENU__MAP'])
 
         return options
 
     def start_torchcraft(self, options):
         """Starts torchcraft on available port and given IP with passed options"""
         cmds = []
-        cmds.append(self.bwapi_launcher_path)
+        cmds.append(os.path.expanduser(self.bwapi_launcher_path))
 
         proc1 = subprocess.Popen(cmds,
-                                cwd=os.path.expanduser(self.torchcraft_dir),
-                                env=options,
-                                stdout=subprocess.PIPE
-                                )
+                                 cwd=os.path.expanduser(self.torchcraft_dir),
+                                 env=options,
+                                 stdout=subprocess.PIPE
+                )
         self._register_kill_at_exit(proc1)
 
         proc2 = subprocess.Popen(cmds,
-                                cwd=os.path.expanduser(self.torchcraft_dir),
-                                env=options,
-                                stdout=subprocess.PIPE
-                                )
+                                 cwd=os.path.expanduser(self.torchcraft_dir),
+                                 env=options,
+                                 stdout=subprocess.PIPE
+                )
         self._register_kill_at_exit(proc2)
 
         matchstr = b"TorchCraft server listening on port "
@@ -173,6 +176,7 @@ class StarCraftBaseEnv(gym.Env):
             if line[:len(matchstr)] == matchstr:
                 self.server_port1 = int(line[len(matchstr):].strip())
                 break
+
         for line in iter(proc2.stdout.readline, ''):
             if len(line) != 0:
                 print(line.rstrip().decode('utf-8'))

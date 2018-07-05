@@ -3,6 +3,8 @@ options:
   # For mac replace with this
   #BWAPI_CONFIG_AI__AI: BWEnv/build/BWEnv.dylib
 
+  # You may override this through command line environment options
+  BWAPI_INSTALL_PREFIX: ~/test/bwapi
   # Replace with your own starcraft map
-  BWAPI_CONFIG_AUTO_MENU__MAP: /home/apsdehal/projects/nyu/is/gym-starcraft/micro-empty2.scm
+  BWAPI_CONFIG_AUTO_MENU__MAP: ./maps/micro-empty.scm
   BWAPI_CONFIG_AI__AI: BWEnv/build/BWEnv.so

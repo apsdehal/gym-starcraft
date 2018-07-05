@@ -1,4 +1,4 @@
-from gym_starcraft.envs.starcraft_mnv1 import StarCraftMNv1
+from gym_starcraft.envs.starcraft_mvn import StarCraftMvN
 from flags import get_parser
 
 
@@ -11,7 +11,7 @@ class RandomAgent(object):
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
-    env = StarCraftMNv1(args, final_init=True)
+    env = StarCraftMvN(args, final_init=True)
 
     agent = RandomAgent(env.action_space)
     episodes = 0

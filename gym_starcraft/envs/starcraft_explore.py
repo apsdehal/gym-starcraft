@@ -3,12 +3,12 @@ from gym import spaces
 
 import torchcraft.Constants as tcc
 import gym_starcraft.utils as utils
-import gym_starcraft.envs.starcraft_mnv1 as sc
+import gym_starcraft.envs.starcraft_mvn as sc
 import random
 
 DISTANCE_FACTOR = 8
 
-class StarCraftExplore(sc.StarCraftMNv1):
+class StarCraftExplore(sc.StarCraftMvN):
     TIMESTEP_PENALTY = -0.05
     ONPREY_REWARD = 0.05
 
@@ -23,6 +23,15 @@ class StarCraftExplore(sc.StarCraftMNv1):
         args.our_unit_type = 34
 
         super(StarCraftExplore, self).__init__(args, final_init)
+
+        if not hasattr(args, 'cooperation_setting'):
+            args.cooperation_setting = 'normal'
+
+        if not hasattr(args, 'explore_vision'):
+            args.explore_vision = 10
+
+        if not hasattr(args, 'stay_near_enemy'):
+            args.stay_near_enemy = False
 
         if args.cooperation_setting == 'normal':
             self.prey_exponent = 0
@@ -45,7 +54,6 @@ class StarCraftExplore(sc.StarCraftMNv1):
 
     def _observation_space(self):
         # absolute x, absolute y, (relative_x, relative_y, in_vision) * nenemy
-
         obs_low = [0.0, 0.0] + [-1.0, -1.0, 0.0] * self.nenemies
         obs_high = [1.0, 1.0] + [1.0, 1.0, 1.0] * self.nenemies
 

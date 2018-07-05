@@ -1,7 +1,7 @@
 '''
 Example implementation of M vs N units gym environment on top of base environment.
-To use a custom reward structure, command generator for this class, you can extend it
-and override the required functions
+To use a custom reward structure or unit command generator for this class,
+you can extend it and override any functions
 '''
 import numpy as np
 
@@ -11,9 +11,9 @@ import torchcraft.Constants as tcc
 import gym_starcraft.utils as utils
 import gym_starcraft.envs.starcraft_base_env as sc
 
-# NOTE: Initial coordinates are to be given in exact x and y coordinates
-# Further on in every transaction we have one cell as unit and thus
-# distance factor must be considered
+# NOTE: Initial coordinates are to be given in exact x and y pixels
+# Further on in every transaction we have cell as our unit from torchcraft
+# So, distance factor must be considered during initialization
 DISTANCE_FACTOR = 8
 
 # M units vs N units, starcraft environment
@@ -21,47 +21,23 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
     TIMESTEP_PENALTY = -0.01
 
     def __init__(self, args, final_init=True):
-        self.nagents = args.nagents
-        self.nenemies = args.nenemies
+        self.args = args
 
         self.move_steps = ((0, 1), (1, 0), (0, -1), (-1, 0), (0, 0),
                            (1, 1), (1, -1),(-1, -1),(-1, 1))
-
-        super(StarCraftMvN, self).__init__(args.torchcraft_dir, args.bwapi_launcher_path,
-                                           args.config_path, args.server_ip,
-                                           args.server_port, args.ai_type,
-                                           args.full_vision, args.speed,
-                                           args.frame_skip, args.set_gui, args.self_play,
-                                           args.max_steps, final_init)
-        # TODO: We had to do this twice so that action_space is well defined.
-        # Fix this later
-        self.nagents = args.nagents
-        self.nenemies = args.nenemies
 
         self.initialize_together = args.initialize_together
         self.initialize_enemy_together = args.initialize_enemy_together
         self.init_range_start = args.init_range_start
         self.init_range_end = args.init_range_end
 
-        # First is our unit's id, 1 is quantity, -1, -1, init_range_start, init_range_end
-        # say that randomly initialize x and y coordinates
-        # within init_range_start and init_range_end
-        self.my_unit_pairs = [(args.our_unit_type, 1, -1, -1,
-                                self.init_range_start, self.init_range_end)
-                                for _ in range(self.nagents)]
+        super(StarCraftMvN, self).__init__(final_init=final_init, **vars(args))
 
-        self.enemy_unit_pairs = [(args.enemy_unit_type, 1, -1, -1,
-                                    self.init_range_start, self.init_range_end)
-                                    for _ in range(self.nenemies)]
-        if self.initialize_together:
-            # 0 for marine, 37 for zergling, 2 for vulture, 65 for zealot
-            self.my_unit_pairs = [(args.our_unit_type, self.nagents, -1, -1,
-                                   self.init_range_start, self.init_range_end)]
+        # NOTE: We don't really need to do this, as it is done by kwargs init already in base
+        self.nagents = args.nagents
+        self.nenemies = args.nenemies
 
-        if self.initialize_enemy_together:
-            self.enemy_unit_pairs = [(args.enemy_unit_type, self.nenemies, -1, -1,
-                                      self.init_range_start, self.init_range_end)]
-
+        # TODO: Get this dynamically to support heterogenuous
         self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
         self.full_vision = args.full_vision
         self.free_movement = args.free_movement
@@ -73,6 +49,27 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
             self.unlimited_attack_range = False
 
         self.prev_actions = np.zeros(self.nagents)
+
+    def _set_units(self):
+        # First is our unit's id, 1 is quantity, -1, -1, init_range_start, init_range_end
+        # say that randomly initialize x and y coordinates
+        # within init_range_start and init_range_end
+        self.my_unit_pairs = [(self.args.our_unit_type, 1, -1, -1,
+                               self.init_range_start, self.init_range_end)
+                              for _ in range(self.nagents)]
+
+        self.enemy_unit_pairs = [(self.args.enemy_unit_type, 1, -1, -1,
+                                  self.init_range_start, self.init_range_end)
+                                 for _ in range(self.nenemies)]
+
+        if self.initialize_together:
+            # 0 for marine, 37 for zergling, 2 for vulture, 65 for zealot
+            self.my_unit_pairs = [(self.args.our_unit_type, self.nagents, -1, -1,
+                                   self.init_range_start, self.init_range_end)]
+
+        if self.initialize_enemy_together:
+            self.enemy_unit_pairs = [(self.args.enemy_unit_type, self.nenemies, -1, -1,
+                                      self.init_range_start, self.init_range_end)]
 
     def _action_space(self):
         # Move up, down, left, right, stay, attack agents i to n
