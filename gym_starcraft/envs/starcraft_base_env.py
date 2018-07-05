@@ -18,35 +18,102 @@ import tempfile
 DISTANCE_FACTOR = 8
 class StarCraftBaseEnv(gym.Env):
     def __init__(self, torchcraft_dir='~/TorchCraft',
-                 bwapi_launcher_path=os.path.join(os.environ["BWAPI_INSTALL_PREFIX"], 'bin/BWAPILauncher'),
-                 config_path='~/gym-starcraft/gym_starcraft/envs/config.yml',
-                 server_ip='127.0.0.1',
-                 server_port=11111,
-                 ai_type='builtin',
-                 full_vision=False,
-                 speed=0, frame_skip=1, set_gui=0, self_play=0,
-                 max_episode_steps=200, final_init=True):
+                 config_path='./config.yml', **kwargs):
+        """Initialized the base StarCraft class which initializes TorchCraft server
+        connects to it and handles environment steps and resets.
+
+        Keyword Arguments:
+            torchcraft_dir {str} -- Directory of TorchCraft repository
+            (TorchCraft should be installed in that directory) (default: {'~/TorchCraft'})
+            config_path {str} -- Path for configuration yml file (default: {'./config.yml'})
+        """
 
         self.action_space = self._action_space()
         self.observation_space = self._observation_space()
 
-        if not final_init:
-            return
-
         self.config_path = config_path
         self.torchcraft_dir = torchcraft_dir
-        self.bwapi_launcher_path = bwapi_launcher_path
-        self.server_ip = server_ip
-        self.self_play = self_play
-        self.frame_skip = frame_skip
-        self.speed = speed
-        self.max_episode_steps = max_episode_steps
-        self.set_gui = set_gui
-        self.frame_count = 0
-        self.ai_type = ai_type
-        self.full_vision = full_vision
+
+        self.init_from_kwargs(kwargs)
+
+        if not self.final_init:
+            return
+
+        options = self.load_config_options()
+
+        self.start_torchcraft(options)
+
+        self.episodes = 0
+        self.episode_wins = 0
+        self.episode_steps = 0
+        self.first_reset = True
+        self._set_unit_attributes()
+
+        # TODO: Move them in proper setters and getters
+        # NOTE: These should be overrided in derived class
+        # Should be a list of pairs where each pair is
+        # (quantity, unit_type, x, y, start_coordinate, end_coordinate)
+        # So (1, 0, -1, -1, 100, 150) will instantiate 0 type unit
+        # at a random place between x = (100, 150) and y = (100, 150)
+        # Leave empty if you want to instantiate anywhere in whole map
+        self.nagents = 1
+        self.vision = 3
+        self.nenemies = 1
+        self.my_unit_pairs = []
+        self.enemy_unit_pairs = []
+
+        self._set_units()
+
+        self.my_current_units = {}
+        self.enemy_current_units = {}
+        self.agent_ids = []
+        self.enemy_ids = []
+        self.state1 = None
+        self.obs = None
+        self.obs_pre = None
+        self.stat = {}
 
 
+    def init_from_kwargs(self, kwargs):
+        """Init the base keyword arguments passed and set then as class properties"""
+        default_kw_args = {
+            # IP of the server where TorchCraft will listen
+            'server_ip': '127.0.0.1',
+            # Speed passed to TorchCraft
+            'speed': 0,
+            # AI Type: builtin | attack_closest | attack_weakest,
+            'ai_type': 'builtin',
+            'full_vision': False,
+            # Number of frame to skip
+            'frame_skip': 1,
+            # Pass to enable GUI
+            'set_gui': 0,
+            # Maximum number of episode steps
+            'max_episode_steps': 200,
+            # Pass this false when you don't want to start the server yet
+            # but init the class for other purposes (e.g. getting action space)
+            'final_init': True,
+            # Print summary at end of episode
+            'print_summary': False
+        }
+
+        if kwargs is None:
+            kwargs = {}
+        default_kw_args.update(kwargs)
+        kwargs = default_kw_args
+
+        self.server_ip = kwargs['server_ip']
+        self.frame_skip = kwargs['frame_skip']
+        self.speed = kwargs['speed']
+        self.max_episode_steps = kwargs['max_episode_steps']
+        self.set_gui = kwargs['set_gui']
+        self.ai_type = kwargs['ai_type']
+        self.full_vision = kwargs['full_vision']
+        self.final_init = kwargs['final_init']
+        self.print_summary = kwargs['print_summary']
+
+    def load_config_options(self):
+        """Load config options from config file and environment"""
         config = None
         with open(self.config_path, 'r') as f:
             try:
@@ -55,8 +122,16 @@ class StarCraftBaseEnv(gym.Env):
                 print('Config yaml error', err)
                 sys.exit(0)
 
-        cmds = []
+        self.bwapi_launcher_path = config['BWAPI_INSTALL_PREFIX']
 
+        # Check if environment contains BWAPI_INSTALL path
+        if 'BWAPI_INSTALL_PREFIX' in os.environ:
+            self.bwapi_launcher_path = os.environ['BWAPI_INSTALL_PREFIX']
+
+        self.bwapi_launcher_path = os.path.join(self.bwapi_launcher_path,
+                                                'bin', 'BWAPILauncher')
+
+        # Set environment variables to be passed directly to BWAPI
         tmpfile = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
         options = dict(os.environ)
         for key, val in config['options'].items():
@@ -65,10 +140,16 @@ class StarCraftBaseEnv(gym.Env):
 
         options['BWAPI_CONFIG_AUTO_MENU__GAME_TYPE'] = "USE MAP SETTINGS"
         options['BWAPI_CONFIG_AUTO_MENU__AUTO_RESTART'] = "ON"
+        # Use LAN and Local mode to start a self-play kind of mode
         options['BWAPI_CONFIG_AUTO_MENU__AUTO_MENU'] = "LAN"
         options['OPENBW_LAN_MODE'] = "LOCAL"
         options['OPENBW_LOCAL_PATH'] = tmpfile
 
+        return options
+
+    def start_torchcraft(self, options):
+        """Starts torchcraft on available port and given IP with passed options"""
+        cmds = []
         cmds.append(self.bwapi_launcher_path)
 
         proc1 = subprocess.Popen(cmds,
@@ -99,37 +180,10 @@ class StarCraftBaseEnv(gym.Env):
                 self.server_port2 = int(line[len(matchstr):].strip())
                 break
 
-        self.episodes = 0
-        self.episode_wins = 0
-        self.episode_steps = 0
-        self.map = 'maps/micro/micro-empty2.scm'
-        self.first_reset = True
-        self._set_unit_attributes()
-
-        # TODO: Move them in proper setters and getters
-        # NOTE: These should be overrided in derived class
-        # Should be a list of pairs where each pair is
-        # (quantity, unit_type, x, y, start_coordinate, end_coordinate)
-        # So (1, 0, -1, -1, 100, 150) will instantiate 0 type unit
-        # at a random place between x = (100, 150) and y = (100, 150)
-        # Leave empty if you want to instantiate anywhere in whole map
-        self.nagents = 1
-        self.vision = 3
-        self.nenemies = 1
-        self.my_unit_pairs = []
-        self.enemy_unit_pairs = []
-
-        self.my_current_units = {}
-        self.enemy_current_units = {}
-        self.agent_ids = []
-        self.enemy_ids = []
-        self.state1 = None
-        self.obs = None
-        self.obs_pre = None
-        self.stat = {}
-
     def init_conn(self):
-
+        """Init connection with torchcraft server"""
+        # Import torchcraft in this function so that torchcraft is not an explicit
+        # dependency for projects importing this repo
         import torchcraft as tc
         self.client1 = tc.Client()
         self.client1.connect(self.server_ip, self.server_port1)
@@ -221,7 +275,10 @@ class StarCraftBaseEnv(gym.Env):
         }
 
     def _step(self, action):
-
+        """Given an action, do an environment step.
+        This makes commands for TorchCraft, sends them and gets back the reward
+        Also update statistics and returns new observation based on the action taken
+        """
         # Stop stepping if map config has come into play
         if len(self.state1.aliveUnits.values()) > self.nagents + self.nenemies:
             reward = self._compute_reward()
@@ -257,6 +314,7 @@ class StarCraftBaseEnv(gym.Env):
         return self.obs, reward, done, info
 
     def _empty_step(self):
+        """Make an empty step where we don't send anything to server"""
         self.client1.send([])
         self.state1 = self.client1.recv()
         self.client2.send([])
@@ -273,6 +331,10 @@ class StarCraftBaseEnv(gym.Env):
             count += 1
 
     def _get_enemy_commands(self):
+        """Get enemy commands based on the 'ai_type'
+        NOTE: Override this function in case you want custom enemy AI.
+        TODO: Initialize func for AI only once.
+        """
         cmds = []
         func = lambda *args: None
 
@@ -289,15 +351,20 @@ class StarCraftBaseEnv(gym.Env):
             dist = utils.get_distance(opp_unit.x, opp_unit.y, unit.x, unit.y)
             vision = tcc.staticvalues['sightRange'][unit.type] / DISTANCE_FACTOR
 
+            # Check if the our unit is in range of enemy then attack
             if (dist <= vision or self.full_vision):
                 cmds.append([
                     tcc.command_unit_protected, unit.id,
                     tcc.unitcommandtypes.Attack_Unit, opp_unit.id
                 ])
 
+        # No-op or empty cmds means in built AI will be emulated
         return cmds
 
     def try_killing(self):
+        """Keeps sending commands to server for killing units
+        until they don't wipe off the map"""
+
         if not self.state1:
             return
 
@@ -312,16 +379,17 @@ class StarCraftBaseEnv(gym.Env):
             self.client2.send(self.kill_units(c2units))
             self.state2 = self.client2.recv()
 
-            for i in range(10):
+            for _ in range(10):
                 self._empty_step()
 
     def _reset(self):
+        """Reset after episode end for next episode"""
         wins = self.episode_wins
         episodes = self.episodes
 
-
-        # print("Episodes: %4d | Wins: %4d | WinRate: %1.3f" % (
-        #         episodes, wins, wins / (episodes + 1E-6)))
+        if self.print_summary:
+            print("Episodes: %4d | Wins: %4d | WinRate: %1.3f" % (
+                    episodes, wins, wins / (episodes + 1E-6)))
 
         self.episodes += 1
         self.episode_steps = 0
@@ -330,22 +398,26 @@ class StarCraftBaseEnv(gym.Env):
             self.init_conn()
             self.first_reset = False
 
+        # Try killing active units
         self.try_killing()
 
         c1 = []
         c2 = []
 
+        # Create the units for new episode
         for unit_pair in self.my_unit_pairs:
             c1 += self._get_create_units_command(self.state1.player_id, unit_pair)
 
         for unit_pair in self.enemy_unit_pairs:
             c2 += self._get_create_units_command(self.state2.player_id, unit_pair)
 
+        # Send commands to both clients
         self.client1.send(c1)
         self.state1 = self.client1.recv()
         self.client2.send(c2)
         self.state2 = self.client2.recv()
 
+        # Wait for units to appear on the map
         while len(self.state1.units.get(self.state1.player_id, [])) == 0 \
               and len(self.state2.units.get(self.state2.player_id, [])) == 0:
             self._empty_step()
@@ -359,12 +431,15 @@ class StarCraftBaseEnv(gym.Env):
         self.enemy_ids = list(self.enemy_current_units)
         self.stat = {}
 
+        # Create the observation for current step
         self.obs = self._make_observation()
         self.obs_pre = self.obs
 
         return self.obs
 
     def _get_create_units_command(self, player_id, unit_pair):
+        """Generates command for creating units"""
+
         defaults = [1, 100, 100, 0, self.state1.map_size[0] - 10][len(unit_pair) - 1:]
         unit_type, quantity, x, y, start, end = (list(unit_pair) + defaults)[:6]
 
@@ -372,7 +447,26 @@ class StarCraftBaseEnv(gym.Env):
                                  unit_type=unit_type, start=start,
                                  end=end)
 
-    def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=256):
+    def create_units(self, player_id, quantity, unit_type=0, x=100, y=100, start=0, end=250):
+        """Create units in specific location (x, y) within bounding box of
+        (start, start) and (end, end). If either of x or y is -1, that coordindate is
+        initialized randomly within the range specified.
+
+        Arguments:
+            player_id {int} -- ID of the player for which to create units
+            quantity {int} -- Number of units to create
+
+        Keyword Arguments:
+            unit_type {int} -- ID of unit type to create, 0 is marine (default: {0})
+            x {int} -- X coordinate of initialization. If -1, it is random (default: {100})
+            y {int} -- Y coordinate of initialization. If -1, it is random (default: {100})
+            start {int} -- Start of bounding box (default: {0})
+            end {int} -- End of bounding box. (default: {250})
+
+        Default arguments of start and end cover whole map. If you see some errors regarding
+        division with zero when you default "end" of 250, try decreasing it.
+        """
+
         if player_id == self.state1.player_id:
             max_coord = (end - start) // 2 - self.vision // 4
             min_coord = 0
@@ -404,6 +498,9 @@ class StarCraftBaseEnv(gym.Env):
         return data is not None and len(data) == 0
 
     def kill_units(self, units):
+        """Tries to kill argument units by passing commands to BWAPI
+        [units] is a list of units to be killed.
+        """
         commands = []
 
         for u in units:
@@ -417,6 +514,7 @@ class StarCraftBaseEnv(gym.Env):
 
 
     def _parse_units_to_unit_dict(self, units, units_type='my_units'):
+        """Convert units to a dict for easy usage"""
         unit_dict = dict()
 
         for unit in units:
@@ -449,16 +547,23 @@ class StarCraftBaseEnv(gym.Env):
         """Returns a computed scalar value based on the game state"""
         raise NotImplementedError
 
+    def _set_units(self):
+        """Sets my units as per specification mentioned in init
+        Override this method in derived class and just pass if you
+        don't intend to initialize any units
+        """
+        raise NotImplementedError
+
     def _check_done(self):
         """Returns true if the episode was ended"""
-        return (
-                # bool(self.state1.game_ended) or
-                # self.state1.battle_just_ended or
-                len(self.state1.units[self.state1.player_id]) == 0 or \
+        # If either of my units or enemy units has a count of 0 or if
+        # we have reached max steps then we are finished
+        return (len(self.state1.units[self.state1.player_id]) == 0 or \
                 len(self.state2.units[self.state2.player_id]) == 0 or \
                 self.episode_steps == self.max_episode_steps)
 
     def _has_won(self):
+        # Our units should be more than 0 and enemy units should be 0
         return (
             len(self.state1.units[self.state1.player_id]) > 0 and \
             len(self.state2.units[self.state2.player_id]) == 0
@@ -483,4 +588,6 @@ class StarCraftBaseEnv(gym.Env):
         return self.stat
 
     def render(self, mode='human', close=False):
-        pass
+        """Implement in case you want to render some specific information
+        """
+        raise NotImplementedError
