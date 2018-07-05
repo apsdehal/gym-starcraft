@@ -15,6 +15,12 @@ This repository provides an OpenAI Gym interface to StarCraft: BroodWars online 
 - Includes an example derived class for `M vs N` environment which can be further extended for specific cases of general `M vs N` scenarios.
 - In `M vs N` environment, any unit type with any quantity can be initialized anywhere on map or within a specific bounding box. This environment can also be used in case of StarCraft community-building tasks as buildings themselves are units.
 - Includes an explore mode environments, where we can test exploration mode for agents in big and dynamic map of StarCraft.
-- Attack closest and random agent included as an example agent implementation to be used with environment
+- Attack closest and random agent included as an example agent implementation to be used with environment.
+- MvN example supports partial observable setting in which vision is limited as in fog of war.
+- Supports built-in, attack-closest and attack-weakest AI strategies.
 
 ## Running
+
+## TODO
+
+- Support for heterogenuous agents requires some changes in vision range calculation (Vision range is calculated only once)
