@@ -41,7 +41,6 @@ class StarCraftExploreComm(sc.StarCraftExplore):
             reward[self.nfriendly] -= self.TIMESTEP_PENALTY
         else:
             reward[self.nfriendly] = 0
-
         return reward
 
     def reward_terminal(self):

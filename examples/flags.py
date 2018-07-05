@@ -23,9 +23,9 @@ def get_parser():
                         help='Type of AI, builtin|attack_closest|attack_weakest')
     parser.add_argument('--speed', type=int, default=0,
                         help='Speed')
-    parser.add_argument('--init_range_start', type=int, default=100,
+    parser.add_argument('--init_range_start', type=int, default=0,
                         help='Start of initialization range of units')
-    parser.add_argument('--init_range_end', type=int, default=150,
+    parser.add_argument('--init_range_end', type=int, default=250,
                         help='End of initialization range of units')
     parser.add_argument('--frame_skip', type=int, default=1,
                         help='Frame skip')
