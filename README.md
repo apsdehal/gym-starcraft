@@ -14,10 +14,10 @@ This repository provides an OpenAI Gym interface to StarCraft: BroodWars online 
 - Supports built-in, attack-closest and attack-weakest AI strategies.
 
 ### Combat Mode
-![Combat Mode](https://media.giphy.com/media/2fUIxtNqWQMEdhmfTm/giphy.gif)
+![Combat Mode](https://i.imgur.com/sQGASF1.gif)
 
 ### Explore Mode
-![Explore Mode](https://media.giphy.com/media/nEujB3aD9HWAWaEnSO/giphy.gif)
+![Explore Mode](https://i.imgur.com/BywLKaH.gif)
 
 ## Prerequisites and Installation
 
@@ -32,7 +32,7 @@ This repository provides an OpenAI Gym interface to StarCraft: BroodWars online 
 - To run a sample `attack_closest` match between 10 marines and 3 zealots in bounding box of (100, 100) to (150, 150) with GUI, run the following command:
 
 ```
- python examples/attack_closest.py --server_ip 127.0.0.1 --torchcraft_dir=TORCHCRAFT_DIR --set_gui --nagents 10 --max_steps 200 --frame_skip 8 --nenemies 3 --our_unit_type 0 --enemy_unit_type 65 --init_range_end 150 --full_vision --unlimited_attack_range --initialize_enemy_together --step_size 16
+ python examples/attack_closest.py --server_ip 127.0.0.1 --torchcraft_dir=TORCHCRAFT_DIR --set_gui --nagents 10 --max_steps 200 --frame_skip 8 --nenemies 3 --our_unit_type 0 --enemy_unit_type 65 --init_range_start 100 --init_range_end 150 --full_vision --unlimited_attack_range --initialize_enemy_together --step_size 16
 ```
 
 Most of the other flags are self explanatory.
@@ -63,7 +63,7 @@ class YourCustomSCEnv(sc.StarCraftBaseEnv):
     - `reward_terminal` function is used to calculate reward at the end of the episode and can be called by the trainer.
     - `step` function implemented as per gym specification must call internal `_step` at some point to calculate observation from StarCraft.
     - `reset` function implemented as per gym specification must call internal `_reset` at some point to reset the actual StarCraft environment through BWAPI and return initial observation.
-    - Other function include `_get_info` which returns info for current step and `_get_enemy_commands` which can be overriden to implement custom AI for StarCraft.
+    - Other functions include `_get_info` which returns info for current step and `_get_enemy_commands` which can be overriden to implement custom AI for StarCraft.
 
 ## Credits
 

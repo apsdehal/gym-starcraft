@@ -471,15 +471,10 @@ class StarCraftBaseEnv(gym.Env):
         division with zero when you default "end" of 250, try decreasing it.
         """
 
-        if player_id == self.state1.player_id:
-            max_coord = (end - start) // 2 - self.vision // 4
-            min_coord = 0
-        else:
-            max_coord = (end - start)
-            min_coord = (end - start) // 2 + self.vision // 4
-
+        # NOTE: If you want some custom kind of initialization, override this function and
+        # call parent's create_units in that function
         if x < 0:
-            x = (random.randint(min_coord, max_coord) + start) * DISTANCE_FACTOR
+            x = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
 
         if y < 0:
             y = (random.randint(0, (end - start)) + start) * DISTANCE_FACTOR
