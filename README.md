@@ -41,6 +41,30 @@ Use `python examples/attack_closest.py -h` for other options that are available.
 
 ## Custom Environment Development
 
+- First, decide whether you can use either of combat MvN or explore mode environment as a start point to develop your custom environment. If you can do that, derive your new environment by extending one of these classes otherwise extend `StarCraftBaseEnv` like below:
+```py
+import gym_starcraft.envs.starcraft_base_env as sc
+
+class YourCustomSCEnv(sc.StarCraftBaseEnv):
+    def __init__(self, args):
+        # Either use argparse namespace and pass as dict
+        # or pass each of the arguments using specific keywords
+        super(YourCustomSCEnv, self).__init__(**vars(args))
+```
+
+- Now you will need to update or implement some of the required functions. In case you are using either of MvN or explore mode, then you may skip some of these so they default to original implementation. Otherwise, you need to implement most of the required functions which we list below one by one. For each of the function, see sample implementation in MvN environment:
+
+    - First, implement `_set_units` function in which you set `self.my_unit_pairs` and `self.enemy_unit_pairs` which are used to instantiate our and enemy units.
+    - Second, implement `_action_space` and `_observation_space` if required.
+    - Third, implement `_make_commands` function which takes `actions` as parameter and returns a list of commands in TorchCraft format. See sample implementation for an example.
+    - Now, implement `_make_observation` function which return an numpy array of shape defined in `_observation_space` function.
+    - `_has_step_completed` function is checked to make sure current step is completed in `_step` function by default. This can be implemented in case you need to make custom checks.
+    - `_compute_reward` function must return reward for current step in case you are planning to use it. See `attack_closest` agent to see how reward is retrieved for each agent from environment.
+    - `reward_terminal` function is used to calculate reward at the end of the episode and can be called by the trainer.
+    - `step` function implemented as per gym specification must call internal `_step` at some point to calculate observation from StarCraft.
+    - `reset` function implemented as per gym specification must call internal `_reset` at some point to reset the actual StarCraft environment through BWAPI and return initial observation.
+    - Other function include `_get_info` which returns info for current step and `_get_enemy_commands` which can be overriden to implement custom AI for StarCraft.
+
 ## Credits
 
 Initial implementation of this package was based out of Alibaba's [gym-starcraft](https://github.com/alibaba/gym-starcraft) which didn't work properly with latest TorchCraft version. To handle customized needs for our NIPS 2018 submitted paper (not public yet), we developed this version. Without contributions of [@ebetica](https://github.com/ebetica) (Zeming Lin), [@tesatory](https://github.com/tesatory) (Sainbayar Sukhbaatar) and [@tshrjn](https://github.com/tshrjn) (Tushar Jain) and others at Facebook AI Research (FAIR) this package won't be possible.

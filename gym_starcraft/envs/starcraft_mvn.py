@@ -155,10 +155,6 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
         self.prev_actions = actions
         return cmds
 
-    def _has_step_completed(self):
-        check = True
-        return check
-
     def _make_observation(self):
         myself = None
         enemy = None
