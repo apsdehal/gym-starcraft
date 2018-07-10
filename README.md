@@ -69,9 +69,24 @@ class YourCustomSCEnv(sc.StarCraftBaseEnv):
 
 Initial implementation of this package was based out of Alibaba's [gym-starcraft](https://github.com/alibaba/gym-starcraft) which didn't work properly with latest TorchCraft version. To handle customized needs for our NIPS 2018 submitted paper (not public yet), we developed this version. Without contributions of [@ebetica](https://github.com/ebetica) (Zeming Lin), [@tesatory](https://github.com/tesatory) (Sainbayar Sukhbaatar) and [@tshrjn](https://github.com/tshrjn) (Tushar Jain) and others at Facebook AI Research (FAIR) this package won't be possible.
 
+## Cite
+
+If you use this project in your research, kindly cite it using:
+```
+@misc{singh2018,
+  author = {Singh, Amanpreet and Lin, Zeming and Sukhbaatar, Sainbayar and Jain, Tushar},
+  title = {gym-starcraft: OpenAI gym environment for StarCraft Broodwars},
+  year = {2018},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/apsdehal/gym-starcraft}},
+}
+```
+
 ## License
 
 Code for this project is available under MIT license.
+
 
 ## TODO
 
