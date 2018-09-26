@@ -16,6 +16,7 @@ import gym_starcraft.envs.starcraft_base_env as sc
 # So, distance factor must be considered during initialization
 DISTANCE_FACTOR = 8
 
+
 # M units vs N units, starcraft environment
 class StarCraftMvN(sc.StarCraftBaseEnv):
     TIMESTEP_PENALTY = -0.01
@@ -37,6 +38,9 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
         self.nagents = args.nagents
         self.nenemies = args.nenemies
 
+        if not final_init:
+            return
+
         # TODO: Get this dynamically to support heterogenuous
         self.vision = tcc.staticvalues['sightRange'][self.my_unit_pairs[0][0]] / DISTANCE_FACTOR
         self.full_vision = args.full_vision
@@ -51,7 +55,8 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
         self.prev_actions = np.zeros(self.nagents)
 
     def _set_units(self):
-        # First is our unit's id, 1 is quantity, -1, -1, init_range_start, init_range_end
+        # First element is our unit's id, 1 is quantity,
+        # -1, -1, init_range_start, init_range_end
         # say that randomly initialize x and y coordinates
         # within init_range_start and init_range_end
         self.my_unit_pairs = [(self.args.our_unit_type, 1, -1, -1,
@@ -262,6 +267,9 @@ class StarCraftMvN(sc.StarCraftBaseEnv):
             self.episode_wins += 1
 
         return reward
+
+    def _has_step_completed(self):
+        return True
 
     def _get_info(self):
         # Add alive mask to info for use by downstream trainer

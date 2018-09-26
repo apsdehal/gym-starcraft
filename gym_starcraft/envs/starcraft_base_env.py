@@ -105,7 +105,7 @@ class StarCraftBaseEnv(gym.Env):
         self.server_ip = kwargs['server_ip']
         self.frame_skip = kwargs['frame_skip']
         self.speed = kwargs['speed']
-        self.max_episode_steps = kwargs['max_episode_steps']
+        self.max_episode_steps = kwargs['max_steps']
         self.set_gui = kwargs['set_gui']
         self.ai_type = kwargs['ai_type']
         self.full_vision = kwargs['full_vision']

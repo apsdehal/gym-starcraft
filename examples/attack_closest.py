@@ -53,7 +53,6 @@ if __name__ == '__main__':
             total_reward += reward
 
         total_reward += env.reward_terminal()
-
         success += env.stat['success']
         episodes += 1
         state1 = info['state1']
