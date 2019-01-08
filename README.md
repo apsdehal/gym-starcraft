@@ -1,6 +1,6 @@
 # gym-starcraft
 
-This repository provides an OpenAI Gym interface to StarCraft: BroodWars online multiplayer game.
+This repository provides an OpenAI Gym interface to StarCraft: BroodWars online multiplayer game. This package was used in experiments for ICLR 2019 paper for IC3Net: [Learning when to communicate at scale in multiagent cooperative and competitive tasks](https://arxiv.org/abs/1812.09755)
 
 ## Features
 
@@ -67,21 +67,25 @@ class YourCustomSCEnv(sc.StarCraftBaseEnv):
 
 ## Credits
 
-Initial implementation of this package was based out of Alibaba's [gym-starcraft](https://github.com/alibaba/gym-starcraft) which didn't work properly with latest TorchCraft version. To handle customized needs for our NIPS 2018 submitted paper (not public yet), we developed this version. Without contributions of [@ebetica](https://github.com/ebetica) (Zeming Lin), [@tesatory](https://github.com/tesatory) (Sainbayar Sukhbaatar) and [@tshrjn](https://github.com/tshrjn) (Tushar Jain) and others at Facebook AI Research (FAIR) this package won't be possible.
+Initial implementation of this package was based out of Alibaba's [gym-starcraft](https://github.com/alibaba/gym-starcraft) which didn't work properly with latest TorchCraft version. To handle customized needs for our ICLR 2019 paper (not public yet), we developed this version. Without contributions of [@ebetica](https://github.com/ebetica) (Zeming Lin), [@tesatory](https://github.com/tesatory) (Sainbayar Sukhbaatar) and [@tshrjn](https://github.com/tshrjn) (Tushar Jain) and others at Facebook AI Research (FAIR) this package won't be possible.
 
 ## Cite
 
 If you use this project in your research, kindly cite it using:
 ```
-@misc{singh2018,
-  author = {Singh, Amanpreet and Lin, Zeming and Sukhbaatar, Sainbayar and Jain, Tushar},
-  title = {gym-starcraft: OpenAI gym environment for StarCraft Broodwars},
-  year = {2018},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/apsdehal/gym-starcraft}},
+@article{singh2018learning,
+  title={Learning when to Communicate at Scale in Multiagent Cooperative and Competitive Tasks},
+  author={Singh, Amanpreet and Jain, Tushar and Sukhbaatar, Sainbayar},
+  journal={arXiv preprint arXiv:1812.09755},
+  year={2018}
 }
 ```
+
+## Related
+
+- IC3Net code is available at [IC3Net/IC3Net](https://github.com/IC3Net/IC3Net)
+- `ic3net-envs` is available at [apsdehal/ic3net-envs](https://github.com/apsdehal/ic3net-envs)
+
 
 ## License
 
